@@ -12,7 +12,7 @@ Implementation status:
 			- [x] T
 			- [ ] F
 			- [ ] M
-		- [ ] Instructions
+		- [ ] Base Instructions
 			- [x] copy
 			- [x] addi
 			- [x] subi
@@ -29,7 +29,6 @@ Implementation status:
 				- [ ] keywords
 				- [ ] EOF
 				- [ ] MRD
-			- [x] prnt
 			- [ ] repl
 			- [ ] halt
 			- [ ] kill
@@ -48,6 +47,8 @@ Implementation status:
 			- [ ] note
 			- [ ] noop
 			- [ ] rand
+		- [ ] Extra Instructions
+			- [x] prnt
 	- [ ] Networking
 		- [ ] EXA serialization
 		- [ ] TCP connection to other Exahost instances
