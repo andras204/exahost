@@ -1,3 +1,5 @@
+mod lexar;
+
 use std::fmt::Display;
 use once_cell::sync::Lazy;
 use regex::RegexSet;
