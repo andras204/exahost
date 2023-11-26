@@ -3,6 +3,7 @@ mod lexar;
 use std::fmt::Display;
 use once_cell::sync::Lazy;
 use regex::RegexSet;
+use lexar::*;
 
 #[derive(Debug, Clone)]
 pub struct Exa {
@@ -77,12 +78,15 @@ impl Arg {
 }
 
 impl Exa {
-    pub fn new(instr_list: Vec<String>) -> Exa {
-        Exa {
-            instr_list,
-            instr_ptr: 0,
-            reg_x: Register::Number(0),
-            reg_t: Register::Number(0),
+    pub fn new(code: Vec<String>) -> Result<Exa, Vec<String>> {
+        match compile(code) {
+            Ok(instr_list) => Ok(Exa {
+                instr_list,
+                instr_ptr: 0,
+                reg_x: Register::Number(0),
+                reg_t: Register::Number(0),
+            }),
+            Err(err_list) => Err(err_list),
         }
     }
 

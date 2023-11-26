@@ -4,18 +4,17 @@ mod exa;
 
 fn main() {
     let inst: Vec<String> = vec![
-        "copy 5 x",
+        "copy 5 t",
+        ";; semicolon comment",
         "mark LOOP",
-        "subi x 1 x",
-        "prnt x",
+        ";;a",
+        "subi t 1 t",
         "prnt t",
-        "test x = 0",
-        "prnt t",
-        "fjmp LOOP",
+        "note note comment",
+        "tjmp LOOP",
         "prnt 'Loop finished'"
     ].into_iter().map(|s| s.to_string()).collect();
 
-    let mut xa: Exa = Exa::new(inst);
+    let mut xa: Exa = Exa::new(inst).unwrap();
     xa.start();
 }
-
