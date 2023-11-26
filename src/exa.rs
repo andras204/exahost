@@ -2,8 +2,9 @@ mod lexar;
 
 use std::fmt::Display;
 use lexar::*;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Exa {
     instr_list: Vec<String>,
     instr_ptr: u8,
@@ -11,7 +12,7 @@ pub struct Exa {
     reg_t: Register,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Register {
     Number(i16),
     Keyword(String),

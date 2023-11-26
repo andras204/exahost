@@ -1,6 +1,6 @@
-use exa::Exa;
-
 mod exa;
+
+use exa::Exa;
 
 fn main() {
     let inst: Vec<String> = vec![
@@ -25,4 +25,9 @@ fn main() {
 
     let mut xa: Exa = Exa::new(inst).unwrap();
     xa.start();
+
+    let ser = serde_json::to_string(&xa).unwrap();
+    println!("{}", ser);
+    let des: Exa = serde_json::from_str(&ser).unwrap();
+    println!("{:?}", des);
 }
