@@ -1,6 +1,7 @@
+mod lexar;
+
 use std::fmt::Display;
-use once_cell::sync::Lazy;
-use regex::RegexSet;
+use lexar::*;
 
 #[derive(Debug, Clone)]
 pub struct Exa {
@@ -26,61 +27,39 @@ impl Display for Register {
 }
 
 impl Register {
-    fn get_number(&self) -> Result<i16, String> {
-        match self {
-            Self::Number(n) => Ok(*n),
-            _ => Err("Not a Number".to_string()),
+    fn from_token(token: &Token) -> Result<Register, &'static str> {
+        match token.token_type {
+            TokenType::Number => Ok(Register::Number(token.number().unwrap())),
+            TokenType::Keyword => Ok(Register::Keyword(token.keyword().unwrap())),
+            _ => Err("Invalid token type")
         }
     }
 
-    fn get_keyword(&self) -> Result<String, String> {
+    fn number(&self) -> Result<i16, &str> {
+        match self {
+            Self::Number(n) => Ok(n.to_owned()),
+            _ => Err("Not a number"),
+        }
+    }
+
+    fn keyword(&self) -> Result<String, &str> {
         match self {
             Self::Keyword(w) => Ok(w.to_owned()),
-            _ => Err("Not a Keyword".to_string()),
+            _ => Err("Not a keyword"),
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum Arg {
-    Value(Register),
-    RegisterLabel(char),
-    Comparison(String),
-}
-
-impl Arg {
-    fn from_keyword(s: &String) -> Arg {
-        let mut a = s.to_string();
-        a.remove(0);
-        a.remove(a.len() - 1);
-        Arg::Value(Register::Keyword(a))
-    }
-
-    fn from_label(s: &String) -> Arg {
-        Arg::Value(Register::Keyword(s.to_string()))
-    }
-
-    fn from_number(s: &String) -> Arg {
-        Arg::Value(Register::Number(s.parse::<i16>().unwrap()))
-    }
-
-    fn from_register(s: &String) -> Arg {
-        let mut r = s.to_string();
-        return Arg::RegisterLabel(r.pop().unwrap());
-    }
-
-    fn from_comparison(s: &String) -> Arg {
-        Arg::Comparison(s.to_string())
     }
 }
 
 impl Exa {
-    pub fn new(instr_list: Vec<String>) -> Exa {
-        Exa {
-            instr_list,
-            instr_ptr: 0,
-            reg_x: Register::Number(0),
-            reg_t: Register::Number(0),
+    pub fn new(code: Vec<String>) -> Result<Exa, Vec<String>> {
+        match compile(code) {
+            Ok(instr_list) => Ok(Exa {
+                instr_list,
+                instr_ptr: 0,
+                reg_x: Register::Number(0),
+                reg_t: Register::Number(0),
+            }),
+            Err(err_list) => Err(err_list),
         }
     }
 
@@ -100,151 +79,92 @@ impl Exa {
     }
 
     pub fn exec(&mut self) -> Result<(), &str> {
-        let tokens: Vec<String> = Self::tokenize(&self.instr_list[self.instr_ptr as usize]);
+        let tokens: Vec<Token> = tokenize(self.instr_list[self.instr_ptr as usize].clone()).unwrap();
         self.instr_ptr += 1;
-        if tokens[0] == "mark".to_string() { return Ok(()); }
-        let args: Vec<Arg> = Self::parse_args(&self, &tokens[1..]).unwrap();
-        self.execute_instruction(&tokens[0], args)
+        if tokens[0].instruction().unwrap() == "mark".to_string() { return Ok(()); }
+        self.execute_instruction(tokens)
     }
 
-    fn execute_instruction(&mut self, instr: &String, args: Vec<Arg>) -> Result<(), &str> {
-        match &instr[..] {
+    fn execute_instruction(&mut self, tokens: Vec<Token>) -> Result<(), &str> {
+        match &tokens[0].instruction().unwrap()[..] {
             // I/O
-            "copy" => self.copy(&args[0], &args[1]),
+            "copy" => self.copy(&tokens[1], &tokens[2]),
             // math
-            "addi" => self.addi(&args[0], &args[1], &args[2]),
-            "subi" => self.subi(&args[0], &args[1], &args[2]),
-            "muli" => self.muli(&args[0], &args[1], &args[2]),
-            "divi" => self.divi(&args[0], &args[1], &args[2]),
-            "modi" => self.modi(&args[0], &args[1], &args[2]),
+            "addi" => self.addi(&tokens[1], &tokens[2], &tokens[3]),
+            "subi" => self.subi(&tokens[1], &tokens[2], &tokens[3]),
+            "muli" => self.muli(&tokens[1], &tokens[2], &tokens[3]),
+            "divi" => self.divi(&tokens[1], &tokens[2], &tokens[3]),
+            "modi" => self.modi(&tokens[1], &tokens[2], &tokens[3]),
             // test
-            "test" => self.test(&args[0], &args[1], &args[2]),
+            "test" => self.test(&tokens[1], &tokens[2], &tokens[3]),
             // jumps
-            "jump" => self.jump(&args[0]),
-            "tjmp" => self.tjmp(&args[0]),
-            "fjmp" => self.fjmp(&args[0]),
+            "jump" => self.jump(&tokens[1]),
+            "tjmp" => self.tjmp(&tokens[1]),
+            "fjmp" => self.fjmp(&tokens[1]),
             // misc
-            "prnt" => self.print(&args[0]),
+            "prnt" => self.print(&tokens[1]),
             _ => Err("Unknown instruction"),
         }
     }
 
-    fn parse_args(&self, tokens: &[String]) -> Result<Vec<Arg>, &str> {
-        let mut args: Vec<Arg> = Vec::with_capacity(3);
-        static RS: Lazy<RegexSet> = Lazy::new(|| RegexSet::new([
-            r"'*'",          // Keyword
-            r"[A-Z]+[0-9]*", // Label
-            r"[0-9]+",       // Number 
-            r"[xtfm]{1}",    // Register
-            r"[=!><]{1,2}",  // Comparison
-        ]).unwrap());
-        for t in tokens {
-            match RS.matches(t).into_iter().nth(0).unwrap() {
-                0 => args.push(Arg::from_keyword(t)),
-                1 => args.push(Arg::from_label(t)),
-                2 => args.push(Arg::from_number(t)),
-                3 => args.push(Arg::from_register(t)),
-                4 => args.push(Arg::from_comparison(t)),
-                _ => return Err("Unknown Arg type"),
-            }
-        }
-        Ok(args)
-    }
-
-    fn tokenize(instr: &String) -> Vec<String> {
-        let mut tokens: Vec<String> = vec![ instr[..4].to_string() ];
-        if instr.len() > 5 {
-            let arg_slice = &instr[5..];
-            let mut t_begin: usize = 0;
-            let mut mid_word: bool = false;
-            for x in 0..arg_slice.len() {
-                match arg_slice.chars().nth(x).unwrap() {
-                    '\'' => {
-                        mid_word = !mid_word;
-                        if !mid_word {
-                            tokens.push(arg_slice[t_begin..(x + 1)].to_string());
-                            t_begin = x + 1;
-                        }
-                    },
-                    ' ' => {
-                        if !mid_word {
-                            tokens.push(arg_slice[t_begin..x].to_string());
-                            t_begin = x + 1;
-                        }
-                    },
-                    _ => {},
-                }
-            }
-            if arg_slice.len() > t_begin {
-                tokens.push(arg_slice[t_begin..arg_slice.len()].to_string());
-            }
-        }
-        tokens
-    }
-
-    fn addi(&mut self, op1: &Arg, op2: &Arg, target: &Arg) -> Result<(), &str> {
+    fn addi(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<(), &str> {
         let num1 = self.get_number(op1).unwrap();
         let num2 = self.get_number(op2).unwrap();
         *self.get_register_mut(target).unwrap() = Register::Number(num1 + num2);
         Ok(())
     }
 
-    fn subi(&mut self, op1: &Arg, op2: &Arg, target: &Arg) -> Result<(), &str> {
+    fn subi(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<(), &str> {
         let num1 = self.get_number(op1).unwrap();
         let num2 = self.get_number(op2).unwrap();
         *self.get_register_mut(target).unwrap() = Register::Number(num1 - num2);
         Ok(())
     }
 
-    fn muli(&mut self, op1: &Arg, op2: &Arg, target: &Arg) -> Result<(), &str> {
+    fn muli(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<(), &str> {
         let num1 = self.get_number(op1).unwrap();
         let num2 = self.get_number(op2).unwrap();
         *self.get_register_mut(target).unwrap() = Register::Number(num1 * num2);
         Ok(())
     }
 
-    fn divi(&mut self, op1: &Arg, op2: &Arg, target: &Arg) -> Result<(), &str> {
+    fn divi(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<(), &str> {
         let num1 = self.get_number(op1).unwrap();
         let num2 = self.get_number(op2).unwrap();
         *self.get_register_mut(target).unwrap() = Register::Number(num1 / num2);
         Ok(())
     }
 
-    fn modi(&mut self, op1: &Arg, op2: &Arg, target: &Arg) -> Result<(), &str> {
+    fn modi(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<(), &str> {
         let num1 = self.get_number(op1).unwrap();
         let num2 = self.get_number(op2).unwrap();
         *self.get_register_mut(target).unwrap() = Register::Number(num1 % num2);
         Ok(())
     }
 
-    fn test(&mut self, op1: &Arg, comp: &Arg, op2: &Arg) -> Result<(), &str> {
+    fn test(&mut self, op1: &Token, comp: &Token, op2: &Token) -> Result<(), &str> {
         // TODO: handle non numbers
         let eval;
         let num1 = self.get_number(op1).unwrap();
         let num2 = self.get_number(op2).unwrap();
-        match comp {
-            Arg::Comparison(c) => {
-                match &c[..] {
-                    "=" => eval = num1 == num2,
-                    "!=" => eval = num1 != num2,
-                    ">=" => eval = num1 >= num2,
-                    "<=" => eval = num1 <= num2,
-                    ">" => eval = num1 > num2,
-                    "<" => eval = num1 < num2,
-                    _ => return Err("Invalid Comparison"),
-                }
-            },
-            _ => return Err("Arg[2] is not a Comparison")
+        match &comp.comparison().unwrap()[..] {
+            "=" => eval = num1 == num2,
+            "!=" => eval = num1 != num2,
+            ">=" => eval = num1 >= num2,
+            "<=" => eval = num1 <= num2,
+            ">" => eval = num1 > num2,
+            "<" => eval = num1 < num2,
+            _ => return Err("Invalid Comparison"),
         }
         if eval { self.reg_t = Register::Number(1); }
         else { self.reg_t = Register::Number(0); }
         Ok(())
     }
 
-    fn jump(&mut self, arg: &Arg) -> Result<(), &str> {
-        let label = self.get_keyword(arg).unwrap();
+    fn jump(&mut self, arg: &Token) -> Result<(), &str> {
+        let label = arg.label().unwrap();
         for x in 0..self.instr_list.len() {
-            let tokens = Self::tokenize(&self.instr_list[x]);
+            let tokens = split_instruction(self.instr_list[x].to_owned());
             if tokens[0] == "mark" && tokens[1] == label {
                 self.instr_ptr = x as u8;
                 return Ok(());
@@ -253,102 +173,81 @@ impl Exa {
         Err("Label not found")
     }
 
-    fn tjmp(&mut self, arg: &Arg) -> Result<(), &str> {
-        if let Ok(t) = self.reg_t.get_number() {
+    fn tjmp(&mut self, arg: &Token) -> Result<(), &str> {
+        if let Ok(t) = self.reg_t.number() {
             if t != 0 { self.jump(arg) }
             else { Ok(()) }
         }
         else { self.jump(arg) }
     }
 
-    fn fjmp(&mut self, arg: &Arg) -> Result<(), &str> {
-        if let Ok(t) = self.reg_t.get_number() {
+    fn fjmp(&mut self, arg: &Token) -> Result<(), &str> {
+        if let Ok(t) = self.reg_t.number() {
             if t == 0 { return self.jump(arg); }
         }
         Ok(())
     }
 
-    fn copy(&mut self, value: &Arg, target: &Arg) -> Result<(), &str> {
+    fn copy(&mut self, value: &Token, target: &Token) -> Result<(), &str> {
         let val: Register;
-        match value {
-            Arg::RegisterLabel(_) => val = self.get_register_shared(value).unwrap().to_owned(),
-            Arg::Value(v) => val = v.to_owned(),
-            Arg::Comparison(_) => return Err("Found Comparison instead of Value"),
+        match value.token_type {
+            TokenType::Register => val = self.get_register_shared(value).unwrap().to_owned(),
+            TokenType::Number | TokenType::Keyword => val = Register::from_token(value).unwrap(),
+            _ => return Err("Invalid argument type"),
         }
         *self.get_register_mut(target).unwrap() = val;
         Ok(())
     }
 
-    fn print(&self, arg: &Arg) -> Result<(), &str>{
-        match arg {
-            Arg::RegisterLabel(_) => Ok(
-                println!(">{}", *self.get_register_shared(arg).unwrap())
-                ),
-            Arg::Value(v) => {
-                match v {
-                    Register::Number(n) => Ok(println!(">{}", n)),
-                    Register::Keyword(w) => Ok(println!(">{}", w)),
-                }
-            },
-            Arg::Comparison(_) => Err("Found Comparison instead of Value"),
+    fn print(&self, arg: &Token) -> Result<(), &str>{
+        match arg.token_type {
+            TokenType::Register => Ok(println!(">{}", *self.get_register_shared(arg).unwrap())),
+            TokenType::Keyword => Ok(println!(">{}", arg.keyword().unwrap())),
+            _ => Ok(println!(">{}", arg.token))
         }
     }
 
-    fn get_register_shared(&self, arg: &Arg) -> Result<&Register, &str> {
-        match arg {
-            Arg::RegisterLabel(r) => {
-                match r {
-                    'x' => Ok(&self.reg_x),
-                    't' => Ok(&self.reg_t),
-                    _ => Err("Invalid source register"),
-                }
-            },
-            _ => Err("Not a Register"),
+    fn get_register_shared(&self, arg: &Token) -> Result<&Register, &str> {
+        match arg.register().unwrap() {
+            'x' => Ok(&self.reg_x),
+            't' => Ok(&self.reg_t),
+            _ => Err("Invalid register"),
         }
     }
 
-    fn get_register_mut(&mut self, arg: &Arg) -> Result<&mut Register, &str> {
-        match arg {
-            Arg::RegisterLabel(r) => {
-                match r {
-                    'x' => Ok(&mut self.reg_x),
-                    't' => Ok(&mut self.reg_t),
-                    _ => Err("Invalid source register"),
-                }
-            },
-            _ => Err("Not a Register"),
+    fn get_register_mut(&mut self, arg: &Token) -> Result<&mut Register, &str> {
+        match arg.register().unwrap() {
+            'x' => Ok(&mut self.reg_x),
+            't' => Ok(&mut self.reg_t),
+            _ => Err("Invalid register"),
         }
     }
 
-    fn get_keyword(&self, arg: &Arg) -> Result<String, String> {
-        let val: Register;
-        match arg {
-            Arg::RegisterLabel(r) => {
-                match r {
-                    'x' => val = self.reg_x.to_owned(),
-                    't' => val = self.reg_t.to_owned(),
-                    _ => return Err("Invalid source register".to_string())
-                };
-            },
-            Arg::Value(v) => val = v.to_owned(),
-            Arg::Comparison(_) => return Err("Found Comparison instead of Value".to_string()),
-        };
-        val.get_keyword()
+    fn get_keyword<'a>(&'a self, arg: &'a Token) -> Result<String, &str> {
+        match arg.token_type {
+            TokenType::Register => {
+                match arg.register().unwrap() {
+                    'x' => self.reg_x.keyword(),
+                    't' => self.reg_t.keyword(),
+                    _ => return Err("Invalid register"),
+                }
+            }
+            TokenType::Keyword => return arg.keyword(),
+            _ => return Err("Not a keyword"),
+        }
     }
 
-    fn get_number(&self, arg: &Arg) -> Result<i16, String> {
-        let val: Register;
-        match arg {
-            Arg::RegisterLabel(r) => {
-                match r {
-                    'x' => val = self.reg_x.to_owned(),
-                    't' => val = self.reg_t.to_owned(),
-                    _ => return Err("Invalid source register".to_string())
-                };
-            },
-            Arg::Value(v) => val = v.to_owned(),
-            Arg::Comparison(_) => return Err("Found Comparison instead of Value".to_string()),
-        };
-        val.get_number()
+    fn get_number<'a>(&'a self, arg: &'a Token) -> Result<i16, &str> {
+        match arg.token_type {
+            TokenType::Register => {
+                match arg.register().unwrap() {
+                    'x' => self.reg_x.number(),
+                    't' => self.reg_t.number(),
+                    _ => return Err("Invalid register"),
+                }
+            }
+            TokenType::Number => return arg.number(),
+            _ => return Err("Not a number"),
+        }
     }
 }

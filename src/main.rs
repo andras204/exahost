@@ -8,14 +8,21 @@ fn main() {
         "mark LOOP",
         "subi x 1 x",
         "prnt x",
-        "prnt t",
         "test x = 0",
-        "prnt t",
         "fjmp LOOP",
         "prnt 'Loop finished'"
     ].into_iter().map(|s| s.to_string()).collect();
 
-    let mut xa: Exa = Exa::new(inst);
+    let fibonacci: Vec<String> = vec![
+        "copy 1 t",
+        "mark LOOP",
+        "prnt x",
+        "addi x t x",
+        "prnt t",
+        "addi x t t",
+        "jump LOOP",
+    ].into_iter().map(|s| s.to_string()).collect();
+
+    let mut xa: Exa = Exa::new(inst).unwrap();
     xa.start();
 }
-
