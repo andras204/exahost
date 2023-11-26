@@ -3,18 +3,18 @@ use regex::RegexSet;
 
 #[derive(Debug, Clone)]
 pub struct Token {
-    token: String,
-    token_type: TokenType,
+    pub token: String,
+    pub token_type: TokenType,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum TokenType {
     Instruction,
     Number,
+    Keyword,
     Register,
     Label,
     Comparison,
-    Keyword,
     Comment,
 }
 
@@ -23,6 +23,53 @@ impl Token {
         Token {
             token,
             token_type,
+        }
+    }
+
+    pub fn instruction(&self) -> Result<String, &str> {
+        match self.token_type {
+            TokenType::Instruction => Ok(self.token.to_owned()),
+            _ => Err("Not an instruction"),
+        }
+    }
+
+    pub fn number(&self) -> Result<i16, &str> {
+        match self.token_type {
+            TokenType::Number => Ok(self.token.parse::<i16>().unwrap()),
+            _ => Err("Not a number"),
+        }
+    }
+
+    pub fn keyword(&self) -> Result<String, &str> {
+        match self.token_type {
+            TokenType::Keyword => {
+                let mut a = self.token.clone();
+                a.remove(0);
+                a.remove(a.len() - 1);
+                Ok(a)
+            },
+            _ => Err("Not a keyword"),
+        }
+    }
+
+    pub fn register(&self) -> Result<char, &str> {
+        match self.token_type {
+            TokenType::Register => Ok(self.token.to_owned().pop().unwrap()),
+            _ => Err("Not a register"),
+        }
+    }
+
+    pub fn label(&self) -> Result<String, &str> {
+        match self.token_type {
+            TokenType::Label=> Ok(self.token.to_owned()),
+            _ => Err("Not a label"),
+        }
+    }
+
+    pub fn comparison(&self) -> Result<String, &str> {
+        match self.token_type {
+            TokenType::Comparison => Ok(self.token.to_owned()),
+            _ => Err("Not a comaprison"),
         }
     }
 }
@@ -63,7 +110,7 @@ pub fn tokenize(instr: String) -> Result<Vec<Token>, &'static str> {
     Ok(tokens)
 }
 
-fn split_instruction(instr: String) -> Vec<String> {
+pub fn split_instruction(instr: String) -> Vec<String> {
     if instr.starts_with("note") || instr.starts_with(";") {
         return vec![ "note".to_string() ];
     }
