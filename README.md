@@ -43,7 +43,7 @@ Implementation status:
 		- [ ] seek
 		- [ ] drop
 		- [ ] wipe
-		- [ ] note
+		- [x] note
 		- [ ] noop
 		- [ ] rand
 	- [ ] Extra Instructions
