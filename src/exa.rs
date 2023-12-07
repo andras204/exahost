@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Exa {
+    name: String,
     instr_list: Vec<String>,
     instr_ptr: u8,
     reg_x: Register,
@@ -52,9 +53,10 @@ impl Register {
 }
 
 impl Exa {
-    pub fn new(code: Vec<String>) -> Result<Exa, Vec<String>> {
+    pub fn new(name: String, code: Vec<String>) -> Result<Exa, Vec<String>> {
         match compile(code) {
             Ok(instr_list) => Ok(Exa {
+                name,
                 instr_list,
                 instr_ptr: 0,
                 reg_x: Register::Number(0),
@@ -111,35 +113,40 @@ impl Exa {
     fn addi(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<(), &str> {
         let num1 = self.get_number(op1).unwrap();
         let num2 = self.get_number(op2).unwrap();
-        *self.get_register_mut(target).unwrap() = Register::Number(num1 + num2);
+        let result = Self::clamp_value(num1 + num2);
+        *self.get_register_mut(target).unwrap() = result;
         Ok(())
     }
 
     fn subi(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<(), &str> {
         let num1 = self.get_number(op1).unwrap();
         let num2 = self.get_number(op2).unwrap();
-        *self.get_register_mut(target).unwrap() = Register::Number(num1 - num2);
+        let result = Self::clamp_value(num1 - num2);
+        *self.get_register_mut(target).unwrap() = result;
         Ok(())
     }
 
     fn muli(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<(), &str> {
         let num1 = self.get_number(op1).unwrap();
         let num2 = self.get_number(op2).unwrap();
-        *self.get_register_mut(target).unwrap() = Register::Number(num1 * num2);
+        let result = Self::clamp_value(num1 * num2);
+        *self.get_register_mut(target).unwrap() = result;
         Ok(())
     }
 
     fn divi(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<(), &str> {
         let num1 = self.get_number(op1).unwrap();
         let num2 = self.get_number(op2).unwrap();
-        *self.get_register_mut(target).unwrap() = Register::Number(num1 / num2);
+        let result = Self::clamp_value(num1 / num2);
+        *self.get_register_mut(target).unwrap() = result;
         Ok(())
     }
 
     fn modi(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<(), &str> {
         let num1 = self.get_number(op1).unwrap();
         let num2 = self.get_number(op2).unwrap();
-        *self.get_register_mut(target).unwrap() = Register::Number(num1 % num2);
+        let result = Self::clamp_value(num1 % num2);
+        *self.get_register_mut(target).unwrap() = result;
         Ok(())
     }
 
@@ -202,10 +209,16 @@ impl Exa {
 
     fn print(&self, arg: &Token) -> Result<(), &str>{
         match arg.token_type {
-            TokenType::Register => Ok(println!(">{}", *self.get_register_shared(arg).unwrap())),
-            TokenType::Keyword => Ok(println!(">{}", arg.keyword().unwrap())),
-            _ => Ok(println!(">{}", arg.token))
+            TokenType::Register => Ok(println!("{}> {}", self.name, *self.get_register_shared(arg).unwrap())),
+            TokenType::Keyword => Ok(println!("{}> {}", self.name, arg.keyword().unwrap())),
+            _ => Ok(println!("{}> {}", self.name, arg.token))
         }
+    }
+
+    fn clamp_value(mut val: i16) -> Register {
+        if val > 9999 { val = 9999; }
+        if val < -9999 { val = -9999; }
+        Register::Number(val)
     }
 
     fn get_register_shared(&self, arg: &Token) -> Result<&Register, &str> {

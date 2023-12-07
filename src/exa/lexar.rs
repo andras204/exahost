@@ -77,6 +77,12 @@ impl Token {
 pub fn compile(code: Vec<String>) -> Result<Vec<String>, Vec<String>> {
     let mut instructions: Vec<String> = Vec::new();
     let mut errs: Vec<String> = Vec::new();
+
+    if code.len() == 0 {
+        errs.push("Nothing to compile".to_string());
+        return Err(errs);
+    }
+
     for x in 0..code.len() {
         let tokens;
         match tokenize(code[x].clone()) {
@@ -93,6 +99,10 @@ pub fn compile(code: Vec<String>) -> Result<Vec<String>, Vec<String>> {
             Ok(_) => instructions.push(code[x].clone()),
             Err(e) => errs.push(format!("{} at line: {}", e, x + 1)),
         }
+    }
+
+    if instructions.len() == 0 {
+        errs.push("No instructions".to_string());
     }
     if errs.len() > 0 {
         return Err(errs);
@@ -111,7 +121,7 @@ pub fn tokenize(instr: String) -> Result<Vec<Token>, &'static str> {
 }
 
 pub fn split_instruction(instr: String) -> Vec<String> {
-    if instr.starts_with("note") || instr.starts_with(";") {
+    if instr.starts_with("note") || instr.starts_with(";") || instr.len() < 2 {
         return vec![ "note".to_string() ];
     }
 
@@ -176,7 +186,7 @@ pub fn pattern_match(str: String) -> Result<TokenType, &'static str> {
         r"[xtfm]{1}",    // Register
         r"[=!><]{1,2}",  // Comparison
     ]).unwrap());
-    match RS.matches(&str[..]).into_iter().nth(0).unwrap() {
+    match RS.matches(&str[..]).into_iter().nth(0).unwrap_or(9999) {
         0 => Ok(TokenType::Keyword),
         1 => Ok(TokenType::Label),
         2 => Ok(TokenType::Number),
