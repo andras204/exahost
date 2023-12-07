@@ -49,7 +49,8 @@ Implementation status:
 	- [ ] Extra Instructions
 		- [x] prnt
 - [ ] Networking
-	- [ ] EXA serialization
-	- [ ] TCP connection to other Exahost instances
-	- [ ] EXA deserialization
+	- [x] EXA serialization
+	- [x] TCP connection to other Exahost instances
+	- [x] EXA deserialization
+        - [ ] link instruction
 - [ ] Multithreading
