@@ -121,7 +121,7 @@ pub fn tokenize(instr: String) -> Result<Vec<Token>, &'static str> {
 }
 
 pub fn split_instruction(instr: String) -> Vec<String> {
-    if instr.starts_with("note") || instr.starts_with(";") || instr.len() < 2 {
+    if instr.starts_with("note") || instr.starts_with(";") {
         return vec![ "note".to_string() ];
     }
 
@@ -244,6 +244,10 @@ fn get_instr_sig(instr: &Token) -> Result< Vec<Vec<TokenType>>, &str > {
         "prnt" => Ok(vec![
             vec![TokenType::Number, TokenType::Register, TokenType::Keyword],
         ]),
+        "link" => Ok(vec![
+            vec![TokenType::Number, TokenType::Register],
+        ]),
+        "halt" => Ok(vec![]),
         _ => Err("Unknown Instruction"),
     }
 }

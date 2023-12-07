@@ -36,7 +36,7 @@ fn main() {
 
     link_manager.connect("localhost:6800".to_string());
 
-    let result = Exa::new("XA".to_string(), fibonacci);
+    let result = Exa::new("XA".to_string(), vec!["halt".to_string()]);
     
     let mut xa: Exa;
     

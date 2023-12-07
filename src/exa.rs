@@ -18,6 +18,13 @@ pub enum Register {
     Number(i16),
     Keyword(String),
 }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExaStatus {
+    Ok,
+    Halt,
+    Err(String),
+    LinkRq(i16),
+}
 
 impl Display for Register {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -104,10 +111,21 @@ impl Exa {
             "jump" => self.jump(&tokens[1]),
             "tjmp" => self.tjmp(&tokens[1]),
             "fjmp" => self.fjmp(&tokens[1]),
+            // lifecycle
+            "link" => self.link(&tokens[1]),
+            "halt" => Self::halt(),
             // misc
             "prnt" => self.print(&tokens[1]),
             _ => Err("Unknown instruction"),
         }
+    }
+
+    fn link(&self, link: &Token) -> Result<(), &str> {
+        Ok(())
+    }
+
+    fn halt() -> Result<(), &'static str> {
+        Err("Halted")
     }
 
     fn addi(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<(), &str> {
