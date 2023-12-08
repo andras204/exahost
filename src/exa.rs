@@ -73,29 +73,15 @@ impl Exa {
         }
     }
 
-    pub fn start(&mut self) {
-        println!("==========");
-        for l in self.instr_list.clone() { println!("{}", l); }
-        println!("==========");
-        while (self.instr_ptr as usize) < self.instr_list.len() {
-            match self.exec() {
-                Ok(_) => {},
-                Err(e) => {
-                    eprintln!("{}", e);
-                    break;
-                },
-            }
-        }
-    }
-
-    pub fn exec(&mut self) -> Result<(), &str> {
+    pub fn exec(&mut self) -> ExaStatus {
+        if self.instr_ptr as usize == self.instr_list.len() { return ExaStatus::Err("Out of Instructions".to_string()); }
         let tokens: Vec<Token> = tokenize(self.instr_list[self.instr_ptr as usize].clone()).unwrap();
         self.instr_ptr += 1;
-        if tokens[0].instruction().unwrap() == "mark".to_string() { return Ok(()); }
+        if tokens[0].instruction().unwrap() == "mark".to_string() { return ExaStatus::Ok; }
         self.execute_instruction(tokens)
     }
 
-    fn execute_instruction(&mut self, tokens: Vec<Token>) -> Result<(), &str> {
+    fn execute_instruction(&mut self, tokens: Vec<Token>) -> ExaStatus {
         match &tokens[0].instruction().unwrap()[..] {
             // I/O
             "copy" => self.copy(&tokens[1], &tokens[2]),
@@ -116,63 +102,97 @@ impl Exa {
             "halt" => Self::halt(),
             // misc
             "prnt" => self.print(&tokens[1]),
-            _ => Err("Unknown instruction"),
+            _ => ExaStatus::Err("Unknown instruction".to_string()),
         }
     }
 
-    fn link(&self, link: &Token) -> Result<(), &str> {
-        Ok(())
+    fn link(&self, link: &Token) -> ExaStatus {
+        match self.get_number(link) {
+            Ok(l) => ExaStatus::LinkRq(l),
+            Err(e) => ExaStatus::Err(e.to_string()),
+        }
     }
 
-    fn halt() -> Result<(), &'static str> {
-        Err("Halted")
+    fn halt() -> ExaStatus {
+        ExaStatus::Halt
     }
 
-    fn addi(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<(), &str> {
-        let num1 = self.get_number(op1).unwrap();
-        let num2 = self.get_number(op2).unwrap();
-        let result = Self::clamp_value(num1 + num2);
-        *self.get_register_mut(target).unwrap() = result;
-        Ok(())
+    fn addi(&mut self, op1: &Token, op2: &Token, target: &Token) -> ExaStatus {
+        let num1 = match self.get_number(op1) {
+            Ok(n) => n,
+            Err(e) => return ExaStatus::Err(e.to_string()),
+        };
+        let num2 = match self.get_number(op2) {
+            Ok(n) => n,
+            Err(e) => return ExaStatus::Err(e.to_string()),
+        };
+        *self.get_register_mut(target).unwrap() = Register::Number(num1 + num2);
+        ExaStatus::Ok
     }
 
-    fn subi(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<(), &str> {
-        let num1 = self.get_number(op1).unwrap();
-        let num2 = self.get_number(op2).unwrap();
-        let result = Self::clamp_value(num1 - num2);
-        *self.get_register_mut(target).unwrap() = result;
-        Ok(())
+    fn subi(&mut self, op1: &Token, op2: &Token, target: &Token) -> ExaStatus {
+        let num1 = match self.get_number(op1) {
+            Ok(n) => n,
+            Err(e) => return ExaStatus::Err(e.to_string()),
+        };
+        let num2 = match self.get_number(op2) {
+            Ok(n) => n,
+            Err(e) => return ExaStatus::Err(e.to_string()),
+        };
+        *self.get_register_mut(target).unwrap() = Register::Number(num1 - num2);
+        ExaStatus::Ok
     }
 
-    fn muli(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<(), &str> {
-        let num1 = self.get_number(op1).unwrap();
-        let num2 = self.get_number(op2).unwrap();
-        let result = Self::clamp_value(num1 * num2);
-        *self.get_register_mut(target).unwrap() = result;
-        Ok(())
+    fn muli(&mut self, op1: &Token, op2: &Token, target: &Token) -> ExaStatus {
+        let num1 = match self.get_number(op1) {
+            Ok(n) => n,
+            Err(e) => return ExaStatus::Err(e.to_string()),
+        };
+        let num2 = match self.get_number(op2) {
+            Ok(n) => n,
+            Err(e) => return ExaStatus::Err(e.to_string()),
+        };
+        *self.get_register_mut(target).unwrap() = Register::Number(num1 * num2);
+        ExaStatus::Ok
     }
 
-    fn divi(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<(), &str> {
-        let num1 = self.get_number(op1).unwrap();
-        let num2 = self.get_number(op2).unwrap();
-        let result = Self::clamp_value(num1 / num2);
-        *self.get_register_mut(target).unwrap() = result;
-        Ok(())
+    fn divi(&mut self, op1: &Token, op2: &Token, target: &Token) -> ExaStatus {
+        let num1 = match self.get_number(op1) {
+            Ok(n) => n,
+            Err(e) => return ExaStatus::Err(e.to_string()),
+        };
+        let num2 = match self.get_number(op2) {
+            Ok(n) => n,
+            Err(e) => return ExaStatus::Err(e.to_string()),
+        };
+        *self.get_register_mut(target).unwrap() = Register::Number(num1 / num2);
+        ExaStatus::Ok
     }
 
-    fn modi(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<(), &str> {
-        let num1 = self.get_number(op1).unwrap();
-        let num2 = self.get_number(op2).unwrap();
-        let result = Self::clamp_value(num1 % num2);
-        *self.get_register_mut(target).unwrap() = result;
-        Ok(())
+    fn modi(&mut self, op1: &Token, op2: &Token, target: &Token) -> ExaStatus {
+        let num1 = match self.get_number(op1) {
+            Ok(n) => n,
+            Err(e) => return ExaStatus::Err(e.to_string()),
+        };
+        let num2 = match self.get_number(op2) {
+            Ok(n) => n,
+            Err(e) => return ExaStatus::Err(e.to_string()),
+        };
+        *self.get_register_mut(target).unwrap() = Register::Number(num1 % num2);
+        ExaStatus::Ok
     }
 
-    fn test(&mut self, op1: &Token, comp: &Token, op2: &Token) -> Result<(), &str> {
+    fn test(&mut self, op1: &Token, comp: &Token, op2: &Token) -> ExaStatus {
         // TODO: handle non numbers
         let eval;
-        let num1 = self.get_number(op1).unwrap();
-        let num2 = self.get_number(op2).unwrap();
+        let num1 = match self.get_number(op1) {
+            Ok(n) => n,
+            Err(e) => return ExaStatus::Err(e.to_string()),
+        };
+        let num2 = match self.get_number(op2) {
+            Ok(n) => n,
+            Err(e) => return ExaStatus::Err(e.to_string()),
+        };
         match &comp.comparison().unwrap()[..] {
             "=" => eval = num1 == num2,
             "!=" => eval = num1 != num2,
@@ -180,57 +200,58 @@ impl Exa {
             "<=" => eval = num1 <= num2,
             ">" => eval = num1 > num2,
             "<" => eval = num1 < num2,
-            _ => return Err("Invalid Comparison"),
+            _ => return ExaStatus::Err("Invalid Comparison".to_string()),
         }
         if eval { self.reg_t = Register::Number(1); }
         else { self.reg_t = Register::Number(0); }
-        Ok(())
+        ExaStatus::Ok
     }
 
-    fn jump(&mut self, arg: &Token) -> Result<(), &str> {
+    fn jump(&mut self, arg: &Token) -> ExaStatus {
         let label = arg.label().unwrap();
         for x in 0..self.instr_list.len() {
             let tokens = split_instruction(self.instr_list[x].to_owned());
             if tokens[0] == "mark" && tokens[1] == label {
                 self.instr_ptr = x as u8;
-                return Ok(());
+                return ExaStatus::Ok;
             }
         }
-        Err("Label not found")
+        ExaStatus::Err("Label not found".to_string())
     }
 
-    fn tjmp(&mut self, arg: &Token) -> Result<(), &str> {
+    fn tjmp(&mut self, arg: &Token) -> ExaStatus {
         if let Ok(t) = self.reg_t.number() {
             if t != 0 { self.jump(arg) }
-            else { Ok(()) }
+            else { ExaStatus::Ok }
         }
         else { self.jump(arg) }
     }
 
-    fn fjmp(&mut self, arg: &Token) -> Result<(), &str> {
+    fn fjmp(&mut self, arg: &Token) -> ExaStatus {
         if let Ok(t) = self.reg_t.number() {
             if t == 0 { return self.jump(arg); }
         }
-        Ok(())
+        ExaStatus::Ok
     }
 
-    fn copy(&mut self, value: &Token, target: &Token) -> Result<(), &str> {
+    fn copy(&mut self, value: &Token, target: &Token) -> ExaStatus {
         let val: Register;
         match value.token_type {
             TokenType::Register => val = self.get_register_shared(value).unwrap().to_owned(),
             TokenType::Number | TokenType::Keyword => val = Register::from_token(value).unwrap(),
-            _ => return Err("Invalid argument type"),
+            _ => return ExaStatus::Err("Invalid argument type".to_string()),
         }
         *self.get_register_mut(target).unwrap() = val;
-        Ok(())
+        ExaStatus::Ok
     }
 
-    fn print(&self, arg: &Token) -> Result<(), &str>{
+    fn print(&self, arg: &Token) -> ExaStatus {
         match arg.token_type {
-            TokenType::Register => Ok(println!("{}> {}", self.name, *self.get_register_shared(arg).unwrap())),
-            TokenType::Keyword => Ok(println!("{}> {}", self.name, arg.keyword().unwrap())),
-            _ => Ok(println!("{}> {}", self.name, arg.token))
+            TokenType::Register => println!("{}> {}", self.name, *self.get_register_shared(arg).unwrap()),
+            TokenType::Keyword => println!("{}> {}", self.name, arg.keyword().unwrap()),
+            _ => println!("{}> {}", self.name, arg.token),
         }
+        ExaStatus::Ok
     }
 
     fn clamp_value(mut val: i16) -> Register {
