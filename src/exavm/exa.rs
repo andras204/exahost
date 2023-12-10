@@ -1,8 +1,7 @@
-mod lexar;
-
 use std::fmt::Display;
-use lexar::*;
 use serde::{Deserialize, Serialize};
+
+use crate::lexar::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Exa {

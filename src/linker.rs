@@ -7,23 +7,23 @@ use std::io::{BufReader, LineWriter, BufRead, Write};
 
 pub struct LinkManager {
     bind_addr: String,
-    retrun_sender: Sender<String>,
+    retrun_tx: Sender<String>,
     links: HashMap<u16, Sender<String>>,
 }
 
 impl LinkManager {
-    pub fn new(bind_addr: String, retrun_sender: Sender<String>) -> LinkManager {
+    pub fn new(bind_addr: String, retrun_tx: Sender<String>) -> LinkManager {
         LinkManager {
             bind_addr,
-            retrun_sender,
+            retrun_tx,
             links: HashMap::new(),
         }
     }
 
     pub fn start_listening(&self) -> JoinHandle<()> {
-        let sender_clone = self.retrun_sender.clone();
+        let tx_clone = self.retrun_tx.clone();
         let addr_clone = self.bind_addr.clone();
-        thread::spawn(|| Self::listen(addr_clone, sender_clone))
+        thread::spawn(|| Self::listen(addr_clone, tx_clone))
     }
 
     pub fn connect(&mut self, addr: String) {
@@ -38,28 +38,27 @@ impl LinkManager {
         self.links.get(&link).unwrap().send(msg).unwrap();
     }
 
-    fn listen(bind_addr: String, retrun_sender: Sender<String>) {
+    fn listen(bind_addr: String, retrun_tx: Sender<String>) {
         let listener = TcpListener::bind(bind_addr).unwrap();
-        retrun_sender.send(listener.local_addr().unwrap().to_string()).unwrap();
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
                     println!("accepted connection from {}", stream.peer_addr().unwrap());
-                    let sender_clone = retrun_sender.clone();
-                    thread::spawn(move || Self::handle_incoming(stream, sender_clone));
+                    let tx_clone = retrun_tx.clone();
+                    thread::spawn(move || Self::handle_incoming(stream, tx_clone));
                 },
                 Err(e) => eprintln!("{}", e),
             }
         }
     }
 
-    fn handle_incoming(stream: TcpStream, retrun_sender: Sender<String>) {
+    fn handle_incoming(stream: TcpStream, retrun_tx: Sender<String>) {
         loop {
             let mut line = String::new();
             let mut reader = BufReader::new(&stream);
             let bytes_read = reader.read_line(&mut line).unwrap();
             if bytes_read == 0 { break; }
-            retrun_sender.send(line.trim().to_string()).unwrap();
+            retrun_tx.send(line.trim().to_string()).unwrap();
         }
     }
 
