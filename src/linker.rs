@@ -5,6 +5,8 @@ use std::thread::{self, JoinHandle};
 use std::net::*;
 use std::io::{BufReader, LineWriter, BufRead, Write};
 
+use crate::signal::HostSignal;
+
 pub struct LinkManager {
     bind_addr: String,
     retrun_tx: Sender<String>,
@@ -20,10 +22,10 @@ impl LinkManager {
         }
     }
 
-    pub fn start_listening(&self) -> JoinHandle<()> {
+    pub fn start_listening(&self) {
         let tx_clone = self.retrun_tx.clone();
         let addr_clone = self.bind_addr.clone();
-        thread::spawn(|| Self::listen(addr_clone, tx_clone))
+        //thread::spawn(|| Self::listen(addr_clone, tx_clone))
     }
 
     pub fn connect(&mut self, addr: String) {

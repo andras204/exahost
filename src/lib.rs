@@ -1,11 +1,15 @@
 use std::sync::mpsc::{Sender, Receiver, channel};
 
-use exavm::{ExaVM, exa::Exa};
+use exavm::ExaVM;
 use linker::LinkManager;
+use exa::Exa;
+use signal::HostSignal;
 
 pub mod linker;
 pub mod exavm;
 pub mod lexar;
+pub mod exa;
+pub mod signal;
 
 pub struct Host {
     host_name: String,
@@ -13,8 +17,8 @@ pub struct Host {
     exa_vm: ExaVM,
     link_tx: Sender<String>,
     link_rx: Receiver<String>,
-    vm_tx: Sender<String>,
-    vm_rx: Receiver<String>,
+    vm_tx: Sender<HostSignal>,
+    vm_rx: Receiver<HostSignal>,
 }
 
 impl Host {

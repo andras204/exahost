@@ -238,7 +238,7 @@ fn get_instr_sig(instr: &Token) -> Result< Vec<Vec<TokenType>>, &str > {
             vec![TokenType::Comparison],
             vec![TokenType::Number, TokenType::Register],
         ]),
-        "jump" | "tjmp" | "fjmp" | "mark" => Ok(vec![
+        "jump" | "tjmp" | "fjmp" | "mark" | "repl" => Ok(vec![
             vec![TokenType::Label],
         ]),
         "prnt" => Ok(vec![
@@ -247,7 +247,7 @@ fn get_instr_sig(instr: &Token) -> Result< Vec<Vec<TokenType>>, &str > {
         "link" => Ok(vec![
             vec![TokenType::Number, TokenType::Register],
         ]),
-        "halt" => Ok(vec![]),
+        "halt" | "kill" => Ok(vec![]),
         _ => Err("Unknown Instruction"),
     }
 }
