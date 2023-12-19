@@ -46,7 +46,7 @@ Implementation status:
 		- [x] note
 		- [ ] noop
 		- [ ] rand
-        - [ ] Macros
+	- [ ] Macros
 	- [ ] Extra Instructions
 		- [x] prnt
 - [ ] Networking
