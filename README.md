@@ -28,9 +28,9 @@ Implementation status:
 			- [ ] keywords
 			- [ ] EOF
 			- [ ] MRD
-		- [ ] repl
-		- [ ] halt
-		- [ ] kill
+		- [x] repl
+		- [x] halt
+		- [x] kill
 		- [ ] link
 		- [ ] host
 		- [ ] mode
@@ -44,7 +44,7 @@ Implementation status:
 		- [ ] drop
 		- [ ] wipe
 		- [x] note
-		- [ ] noop
+		- [x] noop
 		- [ ] rand
 	- [ ] Macros
 	- [ ] Extra Instructions
