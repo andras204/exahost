@@ -131,13 +131,15 @@ pub fn split_instruction(instr: String) -> Vec<String> {
         let arg_slice = &instr[5..];
         let mut t_begin: usize = 0;
         let mut mid_word: bool = false;
-        for x in 0..arg_slice.len() {
+        let mut x = 0;
+        while x < arg_slice.len() {
             match arg_slice.chars().nth(x).unwrap() {
                 '\'' => {
                     mid_word = !mid_word;
                     if !mid_word {
                         sliced.push(arg_slice[t_begin..(x + 1)].to_string());
                         t_begin = x + 1;
+                        x += 1;
                     }
                 },
                 ' ' => {
@@ -148,6 +150,7 @@ pub fn split_instruction(instr: String) -> Vec<String> {
                 },
                 _ => {},
             }
+            x += 1;
         }
         if arg_slice.len() > t_begin {
             sliced.push(arg_slice[t_begin..arg_slice.len()].to_string());
@@ -192,7 +195,7 @@ pub fn pattern_match(str: String) -> Result<TokenType, &'static str> {
         2 => Ok(TokenType::Number),
         3 => Ok(TokenType::Register),
         4 => Ok(TokenType::Comparison),
-        _ => Err("Unknown argument at "),
+        _ => Err("Unknown argument"),
     }
 }
 
@@ -247,7 +250,7 @@ fn get_instr_sig(instr: &Token) -> Result< Vec<Vec<TokenType>>, &str > {
         "link" => Ok(vec![
             vec![TokenType::Number, TokenType::Register],
         ]),
-        "halt" | "kill" => Ok(vec![]),
+        "halt" | "kill" | "noop" => Ok(vec![]),
         _ => Err("Unknown Instruction"),
     }
 }

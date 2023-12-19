@@ -8,8 +8,13 @@ pub enum ExaSignal {
     Halt,
     Kill,
     Link(i16),
+    Tx,
+    Rx,
 }
 
+#[derive(Debug, Clone)]
 pub enum HostSignal {
     Link(i16),
+    Step,
+    Stop,
 }

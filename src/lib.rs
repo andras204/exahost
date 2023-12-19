@@ -1,4 +1,4 @@
-use std::sync::mpsc::{Sender, Receiver, channel};
+use flume::{Sender, Receiver};
 
 use exavm::ExaVM;
 use linker::LinkManager;
@@ -24,8 +24,8 @@ pub struct Host {
 impl Host {
     pub fn new(host_name: &str, bind_addr: &str) -> Host {
         println!("Initializing host: {}", host_name);
-        let (link_tx, link_rx) = channel();
-        let (vm_tx, vm_rx) = channel();
+        let (link_tx, link_rx) = flume::unbounded();
+        let (vm_tx, vm_rx) = flume::unbounded();
         let mut host = Host {
             host_name: host_name.to_string(),
             link_manager: LinkManager::new(bind_addr.to_string(), link_tx.clone()),

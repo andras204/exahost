@@ -1,29 +1,20 @@
-use std::{fmt::Display, sync::Arc};
+use std::{fmt::Display, cmp::Ordering};
 use serde::{Deserialize, Serialize};
 
-use crate::{lexar::*, signal::ExaSignal};
+use crate::{lexar::{*, self}, signal::ExaSignal};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Exa {
-    name: String,
+    pub name: String,
     instr_list: Vec<String>,
     instr_ptr: u8,
-    reg_x: Register,
-    reg_t: Register,
-    reg_m: Arc<Option<Register>>,
-    reg_f: Option<Register>,
+    repl_counter: usize,
+    x_reg: Register,
+    t_reg: Register,
+    pub m_reg: Option<Register>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PackedExa {
-    name: String,
-    instr_list: Vec<String>,
-    instr_ptr: u8,
-    reg_x: Register,
-    reg_t: Register,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Register {
     Number(i16),
     Keyword(String),
@@ -34,6 +25,21 @@ impl Display for Register {
         match self {
             Self::Number(n) => write!(f, "{}", n),
             Self::Keyword(w) => write!(f, "{}", w),
+        }
+    }
+}
+
+impl PartialOrd for Register {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match self {
+            Self::Number(n) => match other {
+                Self::Number(m) => Some(n.cmp(m)),
+                Self::Keyword(_) => None,
+            },
+            Self::Keyword(k) => match other {
+                Self::Number(_) => None,
+                Self::Keyword(w) => Some(k.cmp(w)),
+            },
         }
     }
 }
@@ -54,7 +60,7 @@ impl Register {
         }
     }
 
-    fn keyword(&self) -> Result<String, &str> {
+    fn _keyword(&self) -> Result<String, &str> {
         match self {
             Self::Keyword(w) => Ok(w.to_owned()),
             _ => Err("Not a keyword"),
@@ -63,32 +69,40 @@ impl Register {
 }
 
 impl Exa {
-    pub fn new(name: String, code: Vec<String>) -> Result<Exa, Vec<String>> {
-        match compile(code) {
-            Ok(instr_list) => Ok(Exa {
-                name,
-                instr_list,
-                instr_ptr: 0,
-                reg_x: Register::Number(0),
-                reg_t: Register::Number(0),
-                reg_m: Arc::new(None),
-                reg_f: None,
-            }),
-            Err(err_list) => Err(err_list),
-        }
+    pub fn new(name: &str, instruction_list: Vec<String>) -> Result<Self, Vec<String>> {
+        let instr_list = lexar::compile(instruction_list)?;
+        Ok(Exa {
+            name: name.to_string(),
+            instr_list,
+            instr_ptr: 0,
+            repl_counter: 0,
+            x_reg: Register::Number(0),
+            t_reg: Register::Number(0),
+            m_reg: None,
+        })
+    }
+
+    pub fn send_m(&mut self) -> Option<Register> {
+        self.instr_ptr += 1;
+        Some(self.m_reg.take().unwrap())
     }
 
     pub fn exec(&mut self) -> ExaSignal {
         if self.instr_ptr as usize == self.instr_list.len() { return ExaSignal::Err("Out of Instructions".to_string()); }
         let tokens: Vec<Token> = tokenize(self.instr_list[self.instr_ptr as usize].clone()).unwrap();
-        self.instr_ptr += 1;
         if tokens[0].instruction().unwrap() == "mark".to_string() {
             return ExaSignal::Ok;
         }
-        self.execute_instruction(tokens)
+        match self.execute_instruction(tokens) {
+            Ok(s) => {
+                self.instr_ptr += 1;
+                return s;
+            },
+            Err(e) => return e,
+        }
     }
 
-    fn execute_instruction(&mut self, tokens: Vec<Token>) -> ExaSignal {
+    fn execute_instruction(&mut self, tokens: Vec<Token>) -> Result<ExaSignal, ExaSignal> {
         match &tokens[0].instruction().unwrap()[..] {
             // I/O
             "copy" => self.copy(&tokens[1], &tokens[2]),
@@ -111,167 +125,179 @@ impl Exa {
             "kill" => Self::kill(),
             // misc
             "prnt" => self.print(&tokens[1]),
-            _ => ExaSignal::Err("Unknown instruction".to_string()),
+            "noop" => Self::noop(),
+            _ => Err(ExaSignal::Err("Unknown instruction".to_string())),
         }
     }
 
-    fn link(&self, link: &Token) -> ExaSignal {
-        match self.get_number(link) {
-            Ok(l) => ExaSignal::Link(l),
-            Err(e) => ExaSignal::Err(e.to_string()),
-        }
+    fn link(&mut self, link: &Token) -> Result<ExaSignal, ExaSignal> {
+        let l = self.get_number(link)?;
+        Ok(ExaSignal::Link(l))
     }
 
-    fn halt() -> ExaSignal {
-        ExaSignal::Halt
+    fn halt() -> Result<ExaSignal, ExaSignal> {
+        Ok(ExaSignal::Halt)
     }
 
-    fn kill() -> ExaSignal {
-        ExaSignal::Kill
+    fn noop() -> Result<ExaSignal, ExaSignal> {
+        Ok(ExaSignal::Ok)
     }
 
-    fn repl(&self, token: &Token) -> ExaSignal {
+    fn kill() -> Result<ExaSignal, ExaSignal> {
+        Ok(ExaSignal::Kill)
+    }
+
+    fn repl(&mut self, token: &Token) -> Result<ExaSignal, ExaSignal> {
         let mut clone = self.clone();
-        clone.jump(token);
-        clone.name.push_str(":0");
-        ExaSignal::Repl(clone)
+        clone.jump(token)?;
+        clone.name.push_str(&format!(":{}", self.repl_counter));
+        clone.repl_counter = 0;
+        self.repl_counter += 1;
+        Ok(ExaSignal::Repl(clone))
     }
 
-    fn addi(&mut self, op1: &Token, op2: &Token, target: &Token) -> ExaSignal {
-        let num1 = match self.get_number(op1) {
-            Ok(n) => n,
-            Err(e) => return ExaSignal::Err(e.to_string()),
-        };
-        let num2 = match self.get_number(op2) {
-            Ok(n) => n,
-            Err(e) => return ExaSignal::Err(e.to_string()),
-        };
-        *self.get_register_mut(target).unwrap() = Register::Number(num1 + num2);
-        ExaSignal::Ok
+    fn addi(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<ExaSignal, ExaSignal> {
+        let num1 = self.get_number(op1)?;
+        let num2 = self.get_number(op2)?;
+        self.put_value(Register::Number(num1 + num2), target)?;
+        Ok(ExaSignal::Ok)
     }
 
-    fn subi(&mut self, op1: &Token, op2: &Token, target: &Token) -> ExaSignal {
-        let num1 = match self.get_number(op1) {
-            Ok(n) => n,
-            Err(e) => return ExaSignal::Err(e.to_string()),
-        };
-        let num2 = match self.get_number(op2) {
-            Ok(n) => n,
-            Err(e) => return ExaSignal::Err(e.to_string()),
-        };
-        *self.get_register_mut(target).unwrap() = Register::Number(num1 - num2);
-        ExaSignal::Ok
+    fn subi(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<ExaSignal, ExaSignal> {
+        let num1 = self.get_number(op1)?;
+        let num2 = self.get_number(op2)?;
+        self.put_value(Register::Number(num1 - num2), target)?;
+        Ok(ExaSignal::Ok)
     }
 
-    fn muli(&mut self, op1: &Token, op2: &Token, target: &Token) -> ExaSignal {
-        let num1 = match self.get_number(op1) {
-            Ok(n) => n,
-            Err(e) => return ExaSignal::Err(e.to_string()),
-        };
-        let num2 = match self.get_number(op2) {
-            Ok(n) => n,
-            Err(e) => return ExaSignal::Err(e.to_string()),
-        };
-        *self.get_register_mut(target).unwrap() = Register::Number(num1 * num2);
-        ExaSignal::Ok
+    fn muli(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<ExaSignal, ExaSignal> {
+        let num1 = self.get_number(op1)?;
+        let num2 = self.get_number(op2)?;
+        self.put_value(Register::Number(num1 * num2), target)?;
+        Ok(ExaSignal::Ok)
     }
 
-    fn divi(&mut self, op1: &Token, op2: &Token, target: &Token) -> ExaSignal {
-        let num1 = match self.get_number(op1) {
-            Ok(n) => n,
-            Err(e) => return ExaSignal::Err(e.to_string()),
-        };
-        let num2 = match self.get_number(op2) {
-            Ok(n) => n,
-            Err(e) => return ExaSignal::Err(e.to_string()),
-        };
-        *self.get_register_mut(target).unwrap() = Register::Number(num1 / num2);
-        ExaSignal::Ok
+    fn divi(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<ExaSignal, ExaSignal> {
+        let num1 = self.get_number(op1)?;
+        let num2 = self.get_number(op2)?;
+        self.put_value(Register::Number(num1 / num2), target)?;
+        Ok(ExaSignal::Ok)
     }
 
-    fn modi(&mut self, op1: &Token, op2: &Token, target: &Token) -> ExaSignal {
-        let num1 = match self.get_number(op1) {
-            Ok(n) => n,
-            Err(e) => return ExaSignal::Err(e.to_string()),
-        };
-        let num2 = match self.get_number(op2) {
-            Ok(n) => n,
-            Err(e) => return ExaSignal::Err(e.to_string()),
-        };
-        *self.get_register_mut(target).unwrap() = Register::Number(num1 % num2);
-        ExaSignal::Ok
+    fn modi(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<ExaSignal, ExaSignal> {
+        let num1 = self.get_number(op1)?;
+        let num2 = self.get_number(op2)?;
+        self.put_value(Register::Number(num1 % num2), target)?;
+        Ok(ExaSignal::Ok)
     }
 
-    fn test(&mut self, op1: &Token, comp: &Token, op2: &Token) -> ExaSignal {
-        // TODO: handle non numbers
+    fn test(&mut self, op1: &Token, comp: &Token, op2: &Token) -> Result<ExaSignal, ExaSignal> {
         let eval;
-        let num1 = match self.get_number(op1) {
-            Ok(n) => n,
-            Err(e) => return ExaSignal::Err(e.to_string()),
-        };
-        let num2 = match self.get_number(op2) {
-            Ok(n) => n,
-            Err(e) => return ExaSignal::Err(e.to_string()),
-        };
+        let v1 = self.get_value(op1)?;
+        let v2 = self.get_value(op2)?;
         match &comp.comparison().unwrap()[..] {
-            "=" => eval = num1 == num2,
-            "!=" => eval = num1 != num2,
-            ">=" => eval = num1 >= num2,
-            "<=" => eval = num1 <= num2,
-            ">" => eval = num1 > num2,
-            "<" => eval = num1 < num2,
-            _ => return ExaSignal::Err("Invalid Comparison".to_string()),
+            "=" => eval = v1 == v2,
+            "!=" => eval = v1 != v2,
+            ">=" => eval = v1 >= v2,
+            "<=" => eval = v1 <= v2,
+            ">" => eval = v1 > v2,
+            "<" => eval = v1 < v2,
+            _ => return Err(ExaSignal::Err("Invalid Comparison".to_string())),
         }
-        if eval { self.reg_t = Register::Number(1); }
-        else { self.reg_t = Register::Number(0); }
-        ExaSignal::Ok
+        if eval { self.t_reg = Register::Number(1); }
+        else { self.t_reg = Register::Number(0); }
+        Ok(ExaSignal::Ok)
     }
 
-    fn jump(&mut self, arg: &Token) -> ExaSignal {
+    fn jump(&mut self, arg: &Token) -> Result<ExaSignal, ExaSignal> {
         let label = arg.label().unwrap();
         for x in 0..self.instr_list.len() {
             let tokens = split_instruction(self.instr_list[x].to_owned());
             if tokens[0] == "mark" && tokens[1] == label {
                 self.instr_ptr = x as u8;
-                return ExaSignal::Ok;
+                return Ok(ExaSignal::Ok);
             }
         }
-        ExaSignal::Err("Label not found".to_string())
+        Err(ExaSignal::Err("Label not found".to_string()))
     }
 
-    fn tjmp(&mut self, arg: &Token) -> ExaSignal {
-        if let Ok(t) = self.reg_t.number() {
+    fn tjmp(&mut self, arg: &Token) -> Result<ExaSignal, ExaSignal> {
+        if let Ok(t) = self.t_reg.number() {
             if t != 0 { self.jump(arg) }
-            else { ExaSignal::Ok }
+            else { Ok(ExaSignal::Ok) }
         }
         else { self.jump(arg) }
     }
 
-    fn fjmp(&mut self, arg: &Token) -> ExaSignal {
-        if let Ok(t) = self.reg_t.number() {
-            if t == 0 { return self.jump(arg); }
+    fn fjmp(&mut self, arg: &Token) -> Result<ExaSignal, ExaSignal> {
+        if let Ok(t) = self.t_reg.number() {
+            if t == 0 { return self.jump(arg) }
         }
-        ExaSignal::Ok
+        Ok(ExaSignal::Ok)
     }
 
-    fn copy(&mut self, value: &Token, target: &Token) -> ExaSignal {
+    fn copy(&mut self, value: &Token, target: &Token) -> Result<ExaSignal, ExaSignal> {
         let val: Register;
         match value.token_type {
-            TokenType::Register => val = self.get_register_shared(value).unwrap().to_owned(),
+            TokenType::Register => val = self.get_value(value)?,
             TokenType::Number | TokenType::Keyword => val = Register::from_token(value).unwrap(),
-            _ => return ExaSignal::Err("Invalid argument type".to_string()),
+            _ => return Err(ExaSignal::Err("Invalid argument type".to_string())),
         }
-        *self.get_register_mut(target).unwrap() = val;
-        ExaSignal::Ok
+        self.put_value(val, target)?;
+        Ok(ExaSignal::Ok)
     }
 
-    fn print(&self, arg: &Token) -> ExaSignal {
+    fn print(&mut self, arg: &Token) -> Result<ExaSignal, ExaSignal> {
+        let name = self.name.clone();
         match arg.token_type {
-            TokenType::Register => println!("{}> {}", self.name, *self.get_register_shared(arg).unwrap()),
-            TokenType::Keyword => println!("{}> {}", self.name, arg.keyword().unwrap()),
-            _ => println!("{}> {}", self.name, arg.token),
+            TokenType::Register => println!("{}> {}", name, self.get_value(arg)?),
+            TokenType::Keyword => println!("{}> {}", name, arg.keyword().unwrap()),
+            TokenType::Number => println!("{}> {}", name, arg.number().unwrap()),
+            _ => println!("{}> {}", name, arg.token),
         }
-        ExaSignal::Ok
+        Ok(ExaSignal::Ok)
+    }
+
+    fn put_value(&mut self, value: Register, target: &Token) -> Result<(), ExaSignal> {
+        let value = match value {
+            Register::Number(n) => Self::clamp_value(n),
+            Register::Keyword(w) => Register::Keyword(w),
+        };
+        match target.register().unwrap() {
+            'x' => *self.get_register_mut('x').unwrap() = value,
+            't' => *self.get_register_mut('t').unwrap() = value,
+            'm' => {
+                match self.m_reg {
+                    Some(_) => return Err(ExaSignal::Tx),
+                    None => {
+                        self.m_reg = Some(value);
+                        return Err(ExaSignal::Tx);
+                    },
+                }
+            },
+            'f' => panic!("File register not implemented"),
+            _ => return Err(ExaSignal::Err("Invalid register".to_string())),
+        }
+        Ok(())
+    }
+
+    fn get_value(&mut self, target: &Token) -> Result<Register, ExaSignal> {
+        match target.token_type {
+            TokenType::Register => (),
+            _ => return Ok(Register::from_token(target).unwrap()),
+        }
+        match target.register().unwrap() {
+            'x' => Ok(self.get_register_ref('x').unwrap().to_owned()),
+            't' => Ok(self.get_register_ref('t').unwrap().to_owned()),
+            'm' => {
+                match self.m_reg.take() {
+                    Some(r) => Ok(r),
+                    None => Err(ExaSignal::Rx)
+                }
+            },
+            'f' => panic!("File register not implemented"), //TODO: implement
+            _ => Err(ExaSignal::Err("Invalid register".to_string())),
+        }
     }
 
     fn clamp_value(mut val: i16) -> Register {
@@ -280,47 +306,33 @@ impl Exa {
         Register::Number(val)
     }
 
-    fn get_register_shared(&self, arg: &Token) -> Result<&Register, &str> {
-        match arg.register().unwrap() {
-            'x' => Ok(&self.reg_x),
-            't' => Ok(&self.reg_t),
+    fn get_register_ref(&self, reg: char) -> Result<&Register, &str> {
+        match reg {
+            'x' => Ok(&self.x_reg),
+            't' => Ok(&self.t_reg),
             _ => Err("Invalid register"),
         }
     }
 
-    fn get_register_mut(&mut self, arg: &Token) -> Result<&mut Register, &str> {
-        match arg.register().unwrap() {
-            'x' => Ok(&mut self.reg_x),
-            't' => Ok(&mut self.reg_t),
+    fn get_register_mut(&mut self, reg: char) -> Result<&mut Register, &str> {
+        match reg {
+            'x' => Ok(&mut self.x_reg),
+            't' => Ok(&mut self.t_reg),
             _ => Err("Invalid register"),
         }
     }
 
-    fn get_keyword<'a>(&'a self, arg: &'a Token) -> Result<String, &str> {
+    fn get_number<'a>(&'a mut self, arg: &'a Token) -> Result<i16, ExaSignal> {
         match arg.token_type {
-            TokenType::Register => {
-                match arg.register().unwrap() {
-                    'x' => self.reg_x.keyword(),
-                    't' => self.reg_t.keyword(),
-                    _ => return Err("Invalid register"),
-                }
-            }
-            TokenType::Keyword => return arg.keyword(),
-            _ => return Err("Not a keyword"),
-        }
-    }
-
-    fn get_number<'a>(&'a self, arg: &'a Token) -> Result<i16, &str> {
-        match arg.token_type {
-            TokenType::Register => {
-                match arg.register().unwrap() {
-                    'x' => self.reg_x.number(),
-                    't' => self.reg_t.number(),
-                    _ => return Err("Invalid register"),
-                }
-            }
-            TokenType::Number => return arg.number(),
-            _ => return Err("Not a number"),
+            TokenType::Register =>  {
+                    let result = self.get_value(arg)?;
+                    match result {
+                        Register::Number(n) => Ok(n),
+                        Register::Keyword(_) => Err(ExaSignal::Err("Not a number".to_string())),
+                    }
+                },
+            TokenType::Number => return Ok(arg.number().unwrap()),
+            _ => return Err(ExaSignal::Err("Not a number".to_string())),
         }
     }
 }

@@ -1,6 +1,5 @@
 use std::collections::HashMap;
-use std::sync::mpsc::{Sender, Receiver};
-use std::sync::mpsc;
+use flume::{Sender, Receiver};
 use std::thread::{self, JoinHandle};
 use std::net::*;
 use std::io::{BufReader, LineWriter, BufRead, Write};
@@ -30,7 +29,7 @@ impl LinkManager {
 
     pub fn connect(&mut self, addr: String) {
         let stream = TcpStream::connect(addr).unwrap();
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx) = flume::unbounded();
         self.links.insert(1, tx);
         thread::spawn(move || Self::handle_outgoing(stream, rx));
 
