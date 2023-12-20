@@ -14,7 +14,7 @@ pub enum ExaSignal {
 
 #[derive(Debug, Clone)]
 pub enum HostSignal {
-    Link(i16),
+    Link((i16, Exa)),
     Step,
     Stop,
 }

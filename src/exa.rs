@@ -260,7 +260,7 @@ impl Exa {
 
     fn put_value(&mut self, value: Register, target: &Token) -> Result<(), ExaSignal> {
         let value = match value {
-            Register::Number(n) => Self::clamp_value(n),
+            Register::Number(n) => Register::Number(n.clamp(-9999, 9999)),
             Register::Keyword(w) => Register::Keyword(w),
         };
         match target.register().unwrap() {
@@ -298,12 +298,6 @@ impl Exa {
             'f' => panic!("File register not implemented"), //TODO: implement
             _ => Err(ExaSignal::Err("Invalid register".to_string())),
         }
-    }
-
-    fn clamp_value(mut val: i16) -> Register {
-        if val > 9999 { val = 9999; }
-        if val < -9999 { val = -9999; }
-        Register::Number(val)
     }
 
     fn get_register_ref(&self, reg: char) -> Result<&Register, &str> {

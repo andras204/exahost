@@ -1,3 +1,5 @@
+use std::{thread, time::Duration};
+
 use exahost::{
     Host,
     exa::Exa,
@@ -6,21 +8,20 @@ use exahost::{
 fn main() {
     let mut rizhome = Host::new("Rizhome", "localhost:6800");
     let xa = Exa::new("XA", vec![
-        "copy 10 m",
-        "prnt m",
-        "copy 10 m",
+        "link 800",
+        "prnt 'linked!'",
     ].into_iter().map(|s| s.to_string()).collect()).unwrap();
-
     let xb = Exa::new("XB", vec![
-        "prnt m",
-        "copy 10 m",
-        "prnt m",
+        "prnt 'linking...'",
+        "link 800",
+        "prnt 'linked!'",
     ].into_iter().map(|s| s.to_string()).collect()).unwrap();
+    
+    //rizhome.add_exa(xa);
+    //rizhome.add_exa(xb);
 
-    rizhome.add_exa(xa);
-    rizhome.add_exa(xb);
-
-    for _ in 0..10 {
+    loop {
         rizhome.step();
+        thread::sleep(Duration::from_millis(50));
     }
 }

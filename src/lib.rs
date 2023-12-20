@@ -1,3 +1,4 @@
+use std::net::ToSocketAddrs;
 use flume::{Sender, Receiver};
 
 use exavm::ExaVM;
@@ -15,29 +16,22 @@ pub struct Host {
     host_name: String,
     link_manager: LinkManager,
     exa_vm: ExaVM,
-    link_tx: Sender<String>,
-    link_rx: Receiver<String>,
-    vm_tx: Sender<HostSignal>,
-    vm_rx: Receiver<HostSignal>,
+    link_tx: Sender<HostSignal>,
+    link_rx: Receiver<HostSignal>,
 }
 
 impl Host {
     pub fn new(host_name: &str, bind_addr: &str) -> Host {
         println!("Initializing host: {}", host_name);
-        let (link_tx, link_rx) = flume::unbounded();
-        let (vm_tx, vm_rx) = flume::unbounded();
-        let mut host = Host {
+        let mut link_manager = LinkManager::new(bind_addr);
+        let (link_tx, link_rx) = link_manager.start_listening();
+        let host = Host {
             host_name: host_name.to_string(),
-            link_manager: LinkManager::new(bind_addr.to_string(), link_tx.clone()),
-            exa_vm: ExaVM::new(vm_tx.clone()),
+            link_manager,
+            exa_vm: ExaVM::new(),
             link_tx,
             link_rx,
-            vm_tx,
-            vm_rx,
         };
-
-        host.start_listener();
-
         host
     }
 
@@ -46,10 +40,22 @@ impl Host {
     }
 
     pub fn step(&mut self) {
-        self.exa_vm.step();
+        match self.exa_vm.step() {
+            Some(l) => self.link_tx.send(l).unwrap(),
+            None => (),
+        }
+        match self.link_rx.try_recv() {
+            Ok(l) => match l {
+                HostSignal::Link(link) => {
+                    self.exa_vm.add_exa(link.1);
+                },
+                _ => (),
+            },
+            Err(_) => (),
+        }
     }
 
-    fn start_listener(&mut self) {
-        self.link_manager.start_listening();
+    pub fn connect(&mut self, address: &(impl ToSocketAddrs + ?Sized)) {
+        self.link_manager.connect(address);
     }
 }

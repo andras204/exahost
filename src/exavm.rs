@@ -1,4 +1,3 @@
-use flume::Sender;
 use std::collections::HashMap;
 
 use crate::{
@@ -7,19 +6,19 @@ use crate::{
 };
 
 pub struct ExaVM {
-    return_tx: Sender<HostSignal>,
     ready: HashMap<String, Exa>,
     send: HashMap<String, Exa>,
     recv: HashMap<String, Exa>,
+    link_stack: Vec<HostSignal>
 }
 
 impl ExaVM {
-    pub fn new(return_tx: Sender<HostSignal>) -> Self {
+    pub fn new() -> Self {
         ExaVM {
-            return_tx,
             ready: HashMap::new(),
             send: HashMap::new(),
             recv: HashMap::new(),
+            link_stack: Vec::new(),
         }
     }
 
@@ -31,12 +30,13 @@ impl ExaVM {
         self.ready.insert(exa.name.clone(), exa.to_owned());
     }
 
-    pub fn step(&mut self) {
+    pub fn step(&mut self) -> Option<HostSignal> {
         let results: HashMap<String, ExaSignal> = self.ready.iter_mut()
             .map(|(k, e)| (k.clone(), e.exec()))
             .collect();
         self.process_results(results);
         self.handle_m_register();
+        self.link_stack.pop()
     }
 
     fn process_results(&mut self, results: HashMap<String, ExaSignal>) {
@@ -58,7 +58,10 @@ impl ExaVM {
                     let (n, e) = self.ready.remove_entry(k).unwrap();
                     self.recv.insert(n, e);
                 },
-                _ => (),
+                ExaSignal::Link(l) => {
+                    let exa = self.ready.remove(k).unwrap();
+                    self.link_stack.push(HostSignal::Link((l.to_owned(), exa)));
+                }
             }
         }
     }
@@ -72,8 +75,28 @@ impl ExaVM {
 
         recv.m_reg = send.send_m();
 
-        self.ready.insert(recv.name.clone(), recv);
         self.ready.insert(send.name.clone(), send);
+
+        match recv.exec() {
+            ExaSignal::Err(e) => {
+                eprintln!("[VM]: Error with {}: {}", recv.name.clone(), e);
+                return;
+            },
+            ExaSignal::Tx => {
+                self.send.insert(recv.name.clone(), recv);
+                return;
+            },
+            ExaSignal::Rx => {
+                self.recv.insert(recv.name.clone(), recv);
+                return;
+            },
+            ExaSignal::Link(l) => {
+                self.link_stack.push(HostSignal::Link((l.to_owned(), recv)));
+                return;
+            },
+            _ => (), 
+        }
+        self.ready.insert(recv.name.clone(), recv);
     }
 
     fn halt_exa(&mut self, name: &String) {
