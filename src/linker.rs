@@ -1,68 +1,16 @@
 use std::collections::HashMap;
+use std::io::BufWriter;
 use std::thread;
 use std::net::*;
 use std::io::{BufReader, LineWriter, BufRead, Write};
-use std::sync::{Arc, Mutex};
 use flume::{Sender, Receiver};
-use serde::{Serialize, Deserialize};
 
 use crate::exa::Exa;
 use crate::signal::HostSignal;
 
-#[derive(Debug)]
-struct Connection {
-    stream: TcpStream,
-    writer: LineWriter<TcpStream>,
-    tx: Sender<HostSignal>,
-    link: i16,
-}
-
-impl Connection {
-    pub fn new(stream: TcpStream, tx: Sender<HostSignal>, link: i16) -> Self {
-        Connection {
-            stream: stream.try_clone().unwrap(),
-            writer: LineWriter::new(stream),
-            tx,
-            link,
-        }
-    }
-
-    pub fn send<'a>(&mut self, item: &(impl Serialize + Deserialize<'a>)) {
-        let mut msg = serde_json::to_string(item).unwrap();
-        msg.push(char::from_u32(0xA).unwrap());
-        self.writer.write_all(msg.as_bytes()).unwrap();
-        println!("[linker]: sent exa to link-{}", self.link);
-    }
-
-    pub fn start_read_loop(&self) {
-        let t = self.tx.clone();
-        let s = self.stream.try_clone().unwrap();
-        let l = self.link.clone();
-        thread::spawn(move || {
-            Self::listen_loop(s, t, l);
-        });
-    }
-
-    fn listen_loop(stream: TcpStream, tx: Sender<HostSignal>, link: i16) {
-        let mut reader = BufReader::new(stream);
-        println!("[linker]: listen loop for link-{} started", link);
-        loop {
-            let mut buf = String::new();
-            println!("[conn | {}]: buffer created", link);
-            let bytes = reader.read_line(&mut buf).unwrap();
-            println!("[conn | {}]: bytes read = {}", link, bytes);
-            if bytes == 0 { break; }
-            //let exa: Exa = serde_json::from_str(&buf).unwrap();
-            println!("[conn | {}]: deserialized", link);
-            //tx.send(HostSignal::Link((link, exa))).unwrap();
-            println!("[linker]: recieved exa from link-{}", link);
-        }
-    }
-}
-
 pub struct LinkManager {
     bind_addr: SocketAddr,
-    links: Arc<Mutex<HashMap<i16, Connection>>>,
+    links: HashMap<i16, Sender<Exa>>,
     incoming_tx: Sender<HostSignal>,
     incoming_rx: Receiver<HostSignal>,
     outgoing_tx: Sender<HostSignal>,
@@ -76,7 +24,7 @@ impl LinkManager {
         let bind_addr = bind_address.to_socket_addrs().unwrap().last().unwrap();
         LinkManager {
             bind_addr,
-            links: Arc::new(Mutex::new(HashMap::new())),
+            links: HashMap::new(),
             incoming_tx,
             incoming_rx,
             outgoing_tx,
@@ -86,15 +34,9 @@ impl LinkManager {
 
     pub fn start_listening(&mut self) -> (Sender<HostSignal>, Receiver<HostSignal>) {
         let addr = self.bind_addr.clone();
-        let links_ref = self.links.clone();
         let tx = self.outgoing_tx.clone();
         thread::spawn(move || {
-            Self::listen_loop(addr, links_ref, tx);
-        });
-        let links_ref = self.links.clone();
-        let rx = self.incoming_rx.clone();
-        thread::spawn(move || {
-            Self::send_loop(links_ref, rx);
+            Self::listen_loop(addr, tx);
         });
         (self.incoming_tx.clone(), self.outgoing_rx.clone())
     }
@@ -102,50 +44,56 @@ impl LinkManager {
     pub fn connect(&mut self, address: &(impl ToSocketAddrs + ?Sized)) {
         let addr = address.to_socket_addrs().unwrap().last().unwrap();
         let stream = TcpStream::connect(addr).unwrap();
-        let mut links = self.links.lock().unwrap();
-        let link_id = match links.keys().max() {
-            Some(n) => n.to_owned() + 1,
+        let (tx, rx) = flume::unbounded();
+        let link_id = match self.links.keys().max() {
+            Some(n) => n + 1,
             None => 800,
         };
-        let con = Connection::new(stream, self.outgoing_tx.clone(), link_id);
-        con.start_read_loop();
-        println!("[linker]: connecting to {}, enumerated as link-{}",
-            addr,
-            link_id,
-        );
-        links.insert(link_id as i16, con);
+        self.links.insert(link_id as i16, tx);
+        thread::spawn(move || {
+            Self::handle_outgoing(stream, rx)
+        });
     }
 
-    fn listen_loop(addr: SocketAddr, links: Arc<Mutex<HashMap<i16, Connection>>>, tx: Sender<HostSignal>) {
-        let listener = TcpListener::bind(addr).unwrap();
-        println!("[linker]: listening on {}", listener.local_addr().unwrap());
-        for stream in listener.incoming() {
-            let stream = stream.unwrap();
-            let mut links = links.lock().unwrap();
-            let link_id = match links.keys().max() {
-                Some(n) => n.to_owned() + 1,
-                None => 800,
-            };
-            let con = Connection::new(stream, tx.clone(), link_id);
-            println!("[linker]: new connection from {}, enumerated as link-{}",
-                con.stream.peer_addr().unwrap(),
-                link_id,
-            );
-            links.insert(link_id as i16, con);
-            drop(links);
+    pub fn send(&self, link: i16, exa: Exa) -> Result<(), &str> {
+        match self.links.get(&link) {
+            Some(s) => Ok(s.send(exa).unwrap()),
+            None => Err("Invalid link"),
         }
     }
 
-    fn send_loop(links: Arc<Mutex<HashMap<i16, Connection>>>, rx: Receiver<HostSignal>) {
-        for msg in rx.iter() {
-            match msg {
-                HostSignal::Link(link) => {
-                    let mut links = links.lock().unwrap();
-                    links.get_mut(&link.0).unwrap().send(&link.1);
-                    drop(links);
-                },
-                _ => (),
-            }
+    fn listen_loop(addr: SocketAddr, tx: Sender<HostSignal>) {
+        let listener = TcpListener::bind(addr).unwrap();
+        for result in listener.incoming() {
+            let stream = result.unwrap();
+            let t = tx.clone();
+            thread::spawn(move || {
+                Self::handle_incoming(stream, t);
+            });
+        }
+    }
+
+    fn handle_incoming(stream: TcpStream, tx: Sender<HostSignal>) {
+        let mut reader = BufReader::new(stream);
+        loop {
+            let mut buf = String::new();
+            let bytes = reader.read_line(&mut buf).unwrap();
+            if bytes == 0 { return; }
+            let exa: Exa = serde_json::from_str(&buf).unwrap();
+            tx.send(HostSignal::Link((0, exa))).unwrap();
+        }
+    }
+
+    fn handle_outgoing(stream: TcpStream, rx: Receiver<Exa>) {
+        let mut writer = LineWriter::new(stream);
+        loop {
+            let exa = match rx.recv() {
+                Ok(e) => e,
+                Err(_) => return,
+            };
+            let mut msg = serde_json::to_string(&exa).unwrap();
+            msg.push('\n');
+            writer.write_all(msg.as_bytes()).unwrap();
         }
     }
 }

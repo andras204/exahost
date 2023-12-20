@@ -41,7 +41,10 @@ impl Host {
 
     pub fn step(&mut self) {
         match self.exa_vm.step() {
-            Some(l) => self.link_tx.send(l).unwrap(),
+            Some(s) => match s {
+                HostSignal::Link(l) => self.link_manager.send(l.0, l.1).unwrap(),
+                _ => (),
+            },
             None => (),
         }
         match self.link_rx.try_recv() {
