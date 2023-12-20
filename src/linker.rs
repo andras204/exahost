@@ -29,7 +29,7 @@ impl Connection {
 
     pub fn send<'a>(&mut self, item: &(impl Serialize + Deserialize<'a>)) {
         let mut msg = serde_json::to_string(item).unwrap();
-        msg.push(char::from_u32(0xA).unwrap());
+        msg.push('\n');
         self.writer.write_all(msg.as_bytes()).unwrap();
         println!("[linker]: sent exa to link-{}", self.link);
     }
@@ -132,7 +132,6 @@ impl LinkManager {
                 link_id,
             );
             links.insert(link_id as i16, con);
-            drop(links);
         }
     }
 
@@ -142,7 +141,6 @@ impl LinkManager {
                 HostSignal::Link(link) => {
                     let mut links = links.lock().unwrap();
                     links.get_mut(&link.0).unwrap().send(&link.1);
-                    drop(links);
                 },
                 _ => (),
             }
