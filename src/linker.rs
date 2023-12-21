@@ -104,26 +104,6 @@ impl LinkManager {
                 Some(e) => e,
                 None => continue,
             };
-<<<<<<< HEAD
-            let con = Connection::new(stream, tx.clone(), link_id);
-            println!("[linker]: new connection from {}, enumerated as link-{}",
-                con.stream.peer_addr().unwrap(),
-                link_id,
-            );
-            links.insert(link_id as i16, con);
-        }
-    }
-
-    fn send_loop(links: Arc<Mutex<HashMap<i16, Connection>>>, rx: Receiver<HostSignal>) {
-        for msg in rx.iter() {
-            match msg {
-                HostSignal::Link(link) => {
-                    let mut links = links.lock().unwrap();
-                    links.get_mut(&link.0).unwrap().send(&link.1);
-                },
-                _ => (),
-            }
-=======
             let mut links = self.links.lock().unwrap();
             links.get_mut(k).unwrap().send(&exa);
             println!("[linker]: sent exa to link-{}", k);
@@ -153,7 +133,6 @@ impl LinkManager {
                      stream.peer_addr().unwrap(), link_id);
             let link = Link::new(stream, tx.clone(), link_id.clone());
             links.insert(link_id, link);
->>>>>>> linker
         }
     }
 }
