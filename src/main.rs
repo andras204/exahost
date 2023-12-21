@@ -10,19 +10,19 @@ fn main() {
     rizhome.connect("localhost:6800");
     let xa = Exa::new("XA", vec![
         "link 800",
-        "prnt 'linked!'",
+        "prnt 'travelled'",
     ].into_iter().map(|s| s.to_string()).collect()).unwrap();
     let xb = Exa::new("XB", vec![
-        "prnt 'linking...'",
         "link 800",
-        "prnt 'linked!'",
+        "prnt 'travelled'",
     ].into_iter().map(|s| s.to_string()).collect()).unwrap();
     
     rizhome.add_exa(xa);
     rizhome.add_exa(xb);
 
-    loop {
+    for _ in 0..3 {
         rizhome.step();
-        thread::sleep(Duration::from_millis(50));
+        thread::sleep(Duration::from_millis(250));
+        println!("--------------------------------------------");
     }
 }
