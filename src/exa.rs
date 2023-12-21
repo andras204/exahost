@@ -91,7 +91,8 @@ impl Exa {
         if self.instr_ptr as usize == self.instr_list.len() { return ExaSignal::Err("Out of Instructions".to_string()); }
         let tokens: Vec<Token> = tokenize(self.instr_list[self.instr_ptr as usize].clone()).unwrap();
         if tokens[0].instruction().unwrap() == "mark".to_string() {
-            return ExaSignal::Ok;
+            self.instr_ptr += 1;
+            return self.exec();
         }
         match self.execute_instruction(tokens) {
             Ok(s) => {

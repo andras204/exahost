@@ -1,15 +1,16 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, vec::Drain};
 
 use crate::{
     exa::Exa, 
     signal::{ExaSignal, HostSignal},
 };
 
+#[derive(Debug)]
 pub struct ExaVM {
     ready: HashMap<String, Exa>,
     send: HashMap<String, Exa>,
     recv: HashMap<String, Exa>,
-    link_stack: Vec<HostSignal>
+    link_reqs: Vec<HostSignal>
 }
 
 impl ExaVM {
@@ -18,7 +19,7 @@ impl ExaVM {
             ready: HashMap::new(),
             send: HashMap::new(),
             recv: HashMap::new(),
-            link_stack: Vec::new(),
+            link_reqs: Vec::new(),
         }
     }
 
@@ -30,13 +31,13 @@ impl ExaVM {
         self.ready.insert(exa.name.clone(), exa.to_owned());
     }
 
-    pub fn step(&mut self) -> Option<HostSignal> {
+    pub fn step(&mut self) -> Drain<HostSignal> {
         let results: HashMap<String, ExaSignal> = self.ready.iter_mut()
             .map(|(k, e)| (k.clone(), e.exec()))
             .collect();
         self.process_results(results);
         self.handle_m_register();
-        self.link_stack.pop()
+        self.link_reqs.drain(..)
     }
 
     fn process_results(&mut self, results: HashMap<String, ExaSignal>) {
@@ -60,7 +61,7 @@ impl ExaVM {
                 },
                 ExaSignal::Link(l) => {
                     let exa = self.ready.remove(k).unwrap();
-                    self.link_stack.push(HostSignal::Link((l.to_owned(), exa)));
+                    self.link_reqs.push(HostSignal::Link((l.to_owned(), exa)));
                 }
             }
         }
@@ -91,7 +92,7 @@ impl ExaVM {
                 return;
             },
             ExaSignal::Link(l) => {
-                self.link_stack.push(HostSignal::Link((l.to_owned(), recv)));
+                self.link_reqs.push(HostSignal::Link((l.to_owned(), recv)));
                 return;
             },
             _ => (), 
