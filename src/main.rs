@@ -6,8 +6,8 @@ use exahost::{
 };
 
 fn main() {
-    let mut rizhome = Host::new("Rizhome", "localhost:6800");
-    rizhome.connect("localhost:6800");
+    let mut rhizome = Host::new("Rhizome", "localhost:6800");
+    rhizome.connect("localhost:6800");
     let xa = Exa::new("XA", vec![
         "link 800",
         "prnt 'travelled'",
@@ -17,11 +17,11 @@ fn main() {
         "prnt 'travelled'",
     ].into_iter().map(|s| s.to_string()).collect()).unwrap();
     
-    rizhome.add_exa(xa);
-    rizhome.add_exa(xb);
+    rhizome.add_exa(xa);
+    rhizome.add_exa(xb);
 
     for _ in 0..3 {
-        rizhome.step();
+        rhizome.step();
         thread::sleep(Duration::from_millis(250));
         println!("--------------------------------------------");
     }
