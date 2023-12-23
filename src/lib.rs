@@ -4,13 +4,18 @@ use flume::Receiver;
 use exavm::ExaVM;
 use linker::LinkManager;
 use exa::Exa;
-use signal::HostSignal;
 
 pub mod linker;
 pub mod exavm;
 pub mod lexar;
 pub mod exa;
-pub mod signal;
+
+#[derive(Debug, Clone)]
+pub enum HostSignal {
+    Link((i16, Exa)),
+    Step,
+    Stop,
+}
 
 pub struct Host {
     host_name: String,

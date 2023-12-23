@@ -1,8 +1,8 @@
 use std::{collections::HashMap, vec::Drain};
 
 use crate::{
-    exa::Exa, 
-    signal::{ExaSignal, HostSignal},
+    exa::{Exa, ExaSignal}, 
+    HostSignal,
 };
 
 #[derive(Debug)]

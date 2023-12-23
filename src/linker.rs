@@ -8,7 +8,7 @@ use flume::{Sender, Receiver};
 use serde::{Serialize, Deserialize};
 
 use crate::exa::Exa;
-use crate::signal::HostSignal;
+use crate::HostSignal;
 
 pub struct Link {
     writer: LineWriter<TcpStream>,

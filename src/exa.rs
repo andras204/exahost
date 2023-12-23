@@ -1,17 +1,18 @@
 use std::{fmt::Display, cmp::Ordering};
 use serde::{Deserialize, Serialize};
 
-use crate::{lexar::{*, self}, signal::ExaSignal};
+use crate::lexar::{*, self};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Exa {
-    pub name: String,
-    instr_list: Vec<String>,
-    instr_ptr: u8,
-    repl_counter: usize,
-    x_reg: Register,
-    t_reg: Register,
-    pub m_reg: Option<Register>,
+#[derive(Debug, Clone)]
+pub enum ExaSignal {
+    Ok,
+    Err(String),
+    Repl(Exa),
+    Halt,
+    Kill,
+    Link(i16),
+    Tx,
+    Rx,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -66,6 +67,17 @@ impl Register {
             _ => Err("Not a keyword"),
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Exa {
+    pub name: String,
+    instr_list: Vec<String>,
+    instr_ptr: u8,
+    repl_counter: usize,
+    x_reg: Register,
+    t_reg: Register,
+    pub m_reg: Option<Register>,
 }
 
 impl Exa {
