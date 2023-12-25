@@ -231,7 +231,7 @@ fn get_instr_sig(instr: &Token) -> Result< Vec<Vec<TokenType>>, &str > {
             vec![TokenType::Number, TokenType::Register],
             vec![TokenType::Register],
         ]),
-        "addi" | "subi" | "muli" | "divi" | "modi" => Ok(vec![
+        "addi" | "subi" | "muli" | "divi" | "modi" | "swiz" => Ok(vec![
             vec![TokenType::Number, TokenType::Register],
             vec![TokenType::Number, TokenType::Register],
             vec![TokenType::Register],

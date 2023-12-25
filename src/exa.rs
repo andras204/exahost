@@ -125,6 +125,7 @@ impl Exa {
             "muli" => self.muli(&tokens[1], &tokens[2], &tokens[3]),
             "divi" => self.divi(&tokens[1], &tokens[2], &tokens[3]),
             "modi" => self.modi(&tokens[1], &tokens[2], &tokens[3]),
+            "swiz" => self.swiz(&tokens[1], &tokens[2], &tokens[3]),
             // test
             "test" => self.test(&tokens[1], &tokens[2], &tokens[3]),
             // jumps
@@ -201,6 +202,25 @@ impl Exa {
         let num1 = self.get_number(op1)?;
         let num2 = self.get_number(op2)?;
         self.put_value(Register::Number(num1 % num2), target)?;
+        Ok(ExaSignal::Ok)
+    }
+
+    fn swiz(&mut self, op1: &Token, op2: &Token, target: &Token) -> Result<ExaSignal, ExaSignal> {
+        let num1 = self.get_number(op1)?;
+        let num2 = self.get_number(op2)?;
+        let mut result = 0;
+        for x in 1..5 {
+            let mask = match (num2.abs() % 10i16.pow(x) / 10i16.pow(x - 1)) as u32 {
+                1 => 1,
+                2 => 2,
+                3 => 3,
+                4 => 4,
+                _ => continue,
+            };
+            result += (num1.abs() % 10i16.pow(mask) / 10i16.pow(mask - 1)) * 10i16.pow(x - 1);
+        }
+        result *= num1.signum() * num2.signum();
+        self.put_value(Register::Number(result), target)?;
         Ok(ExaSignal::Ok)
     }
 
