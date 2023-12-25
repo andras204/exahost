@@ -4,8 +4,8 @@ Inspired by [EXAPUNKS](https://www.zachtronics.com/exapunks/), this project aims
 
 The project is currently still work in progress, and very much incomplete.
 
-Implementation status:
-- [ ] Instruction interpreter
+## Implementation status:
+### Instruction interpreter
   - [ ] Registers
     - [x] X
     - [x] T
@@ -52,12 +52,12 @@ Implementation status:
   - [ ] Extra Instructions // mainly for debug
     - [x] prnt
 
-- [ ] Networking
+### Networking
   - [x] connect to other hosts
   - [ ] support for global M register
   - [ ] sync multiple hosts
 
-- [ ] Host configuration
+### Host configuration
   - [ ] max connections
   - [ ] max exas
   - [ ] bind address/port
