@@ -101,9 +101,9 @@ pub fn compile(code: Vec<String>) -> Result<Vec<String>, Vec<String>> {
         }
     }
 
-    if instructions.len() == 0 {
-        errs.push("No instructions".to_string());
-    }
+    // if instructions.len() == 0 {
+    //     errs.push("No instructions".to_string());
+    // }
     if errs.len() > 0 {
         return Err(errs);
     }
@@ -225,10 +225,10 @@ fn match_arg_type(sig: &Vec<TokenType>, arg_type: &TokenType) -> Result<(), &'st
     Err("Wrong argument type")
 }
 
-fn get_instr_sig(instr: &Token) -> Result< Vec<Vec<TokenType>>, &str > {
+fn get_instr_sig(instr: &Token) -> Result<Vec<Vec<TokenType>>, &str > {
     match &instr.token[..] {
         "copy" => Ok(vec![
-            vec![TokenType::Number, TokenType::Register],
+            vec![TokenType::Number, TokenType::Register, TokenType::Keyword],
             vec![TokenType::Register],
         ]),
         "addi" | "subi" | "muli" | "divi" | "modi" | "swiz" => Ok(vec![
@@ -237,9 +237,9 @@ fn get_instr_sig(instr: &Token) -> Result< Vec<Vec<TokenType>>, &str > {
             vec![TokenType::Register],
         ]),
         "test" => Ok(vec![
-            vec![TokenType::Number, TokenType::Register],
+            vec![TokenType::Number, TokenType::Register, TokenType::Keyword],
             vec![TokenType::Comparison],
-            vec![TokenType::Number, TokenType::Register],
+            vec![TokenType::Number, TokenType::Register, TokenType::Keyword],
         ]),
         "jump" | "tjmp" | "fjmp" | "mark" | "repl" => Ok(vec![
             vec![TokenType::Label],
