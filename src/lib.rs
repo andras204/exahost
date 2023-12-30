@@ -7,7 +7,6 @@ use exa::Exa;
 
 pub mod linker;
 pub mod exavm;
-pub mod lexar;
 pub mod exa;
 
 #[derive(Debug, Clone)]

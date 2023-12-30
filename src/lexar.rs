@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use once_cell::sync::Lazy;
 use regex::RegexSet;
 
@@ -101,9 +103,6 @@ pub fn compile(code: Vec<String>) -> Result<Vec<String>, Vec<String>> {
         }
     }
 
-    // if instructions.len() == 0 {
-    //     errs.push("No instructions".to_string());
-    // }
     if errs.len() > 0 {
         return Err(errs);
     }
@@ -178,25 +177,6 @@ fn parse_tokens(sliced: Vec<String>) -> Result<Vec<Token>, &'static str> {
         tokens.push(Token::new(sliced[x].clone(), t_type));
     }
     Ok(tokens)
-}
-
-/// regex match to determine `TokenType`s
-pub fn pattern_match(str: String) -> Result<TokenType, &'static str> {
-    static RS: Lazy<RegexSet> = Lazy::new(|| RegexSet::new([
-        r"'*'",          // Keyword
-        r"[A-Z]+[0-9]*", // Label
-        r"[0-9]+",       // Number 
-        r"[xtfm]{1}",    // Register
-        r"[=!><]{1,2}",  // Comparison
-    ]).unwrap());
-    match RS.matches(&str[..]).into_iter().nth(0).unwrap_or(9999) {
-        0 => Ok(TokenType::Keyword),
-        1 => Ok(TokenType::Label),
-        2 => Ok(TokenType::Number),
-        3 => Ok(TokenType::Register),
-        4 => Ok(TokenType::Comparison),
-        _ => Err("Unknown argument"),
-    }
 }
 
 /// match `TokenType`s with Instruction signatures
