@@ -74,7 +74,7 @@ impl ExaVM {
         k = self.recv.keys().nth(0).unwrap().clone();
         let mut recv = self.recv.remove(&k).unwrap();
 
-        recv.m_reg = send.send_m();
+        recv.reg_m = send.send_m();
 
         self.ready.insert(send.name.clone(), send);
 

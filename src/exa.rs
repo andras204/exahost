@@ -16,23 +16,28 @@ pub enum ExaSignal {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Instruction {
     Copy,
+
     Addi,
     Subi,
     Muli,
     Divi,
     Modi,
     Swiz,
+
     Test,
+
     Mark,
     Jump,
     Fjmp,
     Tjmp,
+
     Link,
     Repl,
     Halt,
     Kill,
-    Prnt,
+
     Noop,
+    Prnt,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -73,8 +78,18 @@ impl Arg {
         }
     }
 
-    pub fn t_reg() -> Self {
+    pub fn reg_t() -> Self {
         Arg::Register(RegLabel::T)
+    }
+
+    pub fn is_reg_m(&self) -> bool {
+        match self {
+            Arg::Register(r) => match r {
+                RegLabel::M => true,
+                _ => false,
+            },
+            _ => false
+        }
     }
 }
 
@@ -143,15 +158,27 @@ pub struct Exa {
     instr_list: Vec<(Instruction, Option<Vec<Arg>>)>,
     instr_ptr: u8,
     repl_counter: usize,
-    x_reg: Register,
-    t_reg: Register,
-    pub m_reg: Option<Register>,
+    reg_x: Register,
+    reg_t: Register,
+    pub reg_m: Option<Register>,
 }
 
 impl Exa {
+    pub fn new(name: &str, instr_list: Vec<(Instruction, Option<Vec<Arg>>)>) -> Self {
+        Self {
+            name: name.to_string(),
+            instr_list,
+            instr_ptr: 0,
+            repl_counter: 0,
+            reg_x: Register::Number(0),
+            reg_t: Register::Number(0),
+            reg_m: None,
+        }
+    }
+
     pub fn send_m(&mut self) -> Option<Register> {
         self.instr_ptr += 1;
-        Some(self.m_reg.take().unwrap())
+        Some(self.reg_m.take().unwrap())
     }
 
     pub fn exec(&mut self) -> ExaSignal {
@@ -295,7 +322,7 @@ impl Exa {
             Comp::Le => eval = v1 <= v2,
             Comp::Ne => eval = v1 != v2,
         }
-        self.t_reg = Register::Number(eval as i16);
+        self.reg_t = Register::Number(eval as i16);
         Ok(ExaSignal::Ok)
     }
 
@@ -311,14 +338,14 @@ impl Exa {
     }
 
     fn tjmp(&mut self, args: Vec<Arg>) -> Result<ExaSignal, ExaSignal> {
-        if self.get_value(&Arg::t_reg()).unwrap() != Register::Number(0) {
+        if self.get_value(&Arg::reg_t()).unwrap() != Register::Number(0) {
             self.jump(args)
         }
         else { Ok(ExaSignal::Ok) }
     }
 
     fn fjmp(&mut self, args: Vec<Arg>) -> Result<ExaSignal, ExaSignal> {
-        if self.get_value(&Arg::t_reg()).unwrap() == Register::Number(0) {
+        if self.get_value(&Arg::reg_t()).unwrap() == Register::Number(0) {
             self.jump(args)
         }
         else { Ok(ExaSignal::Ok) }
@@ -342,11 +369,11 @@ impl Exa {
             Register::Keyword(w) => Register::Keyword(w),
         };
         match target.register().unwrap() {
-            RegLabel::X => *self.get_register_mut(RegLabel::X).unwrap() = value,
-            RegLabel::T => *self.get_register_mut(RegLabel::T).unwrap() = value,
+            RegLabel::X => *self.gereg_tister_mut(RegLabel::X).unwrap() = value,
+            RegLabel::T => *self.gereg_tister_mut(RegLabel::T).unwrap() = value,
             RegLabel::F => panic!("file register not yet implemented"),
             RegLabel::M => {
-                self.m_reg = Some(value);
+                self.reg_m = Some(value);
                 return Err(ExaSignal::Tx);
             },
             RegLabel::H(_) => panic!("hardware registers not yet implemented"),
@@ -360,11 +387,11 @@ impl Exa {
             _ => return Ok(Register::from_arg(target).unwrap()),
         }
         match target.register().unwrap() {
-            RegLabel::X => Ok(self.get_register_ref(RegLabel::X).unwrap().to_owned()),
-            RegLabel::T => Ok(self.get_register_ref(RegLabel::T).unwrap().to_owned()),
+            RegLabel::X => Ok(self.gereg_tister_ref(RegLabel::X).unwrap().to_owned()),
+            RegLabel::T => Ok(self.gereg_tister_ref(RegLabel::T).unwrap().to_owned()),
             RegLabel::F => panic!("file register not yet implemented"),
             RegLabel::M => {
-                match self.m_reg.take() {
+                match self.reg_m.take() {
                     Some(r) => Ok(r),
                     None => Err(ExaSignal::Rx)
                 }
@@ -373,18 +400,18 @@ impl Exa {
         }
     }
 
-    fn get_register_ref(&self, reg: RegLabel) -> Result<&Register, &str> {
+    fn gereg_tister_ref(&self, reg: RegLabel) -> Result<&Register, &str> {
         match reg {
-            RegLabel::X => Ok(&self.x_reg),
-            RegLabel::T => Ok(&self.t_reg),
+            RegLabel::X => Ok(&self.reg_x),
+            RegLabel::T => Ok(&self.reg_t),
             _ => Err("Invalid register"),
         }
     }
 
-    fn get_register_mut(&mut self, reg: RegLabel) -> Result<&mut Register, &str> {
+    fn gereg_tister_mut(&mut self, reg: RegLabel) -> Result<&mut Register, &str> {
         match reg {
-            RegLabel::X => Ok(&mut self.x_reg),
-            RegLabel::T => Ok(&mut self.t_reg),
+            RegLabel::X => Ok(&mut self.reg_x),
+            RegLabel::T => Ok(&mut self.reg_t),
             _ => Err("Invalid register"),
         }
     }
