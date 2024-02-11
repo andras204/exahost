@@ -5,6 +5,7 @@ use exavm::ExaVM;
 use compiler::Compiler;
 use linker::LinkManager;
 use exa::Exa;
+use serde::{Deserialize, Serialize};
 
 use crate::compiler::CompilerConfig;
 
@@ -75,4 +76,13 @@ impl Host {
     pub fn connect(&mut self, address: &(impl ToSocketAddrs + ?Sized)) {
         self.link_manager.connect(address);
     }
+
+    fn load_config() -> HostConfiguration {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug, Clone, /* Serialize, Deserialize*/)]
+struct HostConfiguration {
+    compiler_configuration: CompilerConfig,
 }
