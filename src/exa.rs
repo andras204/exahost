@@ -1,5 +1,7 @@
+use core::panic;
 use std::{fmt::Display, cmp::Ordering};
 use serde::{Deserialize, Serialize};
+use rand::Rng;
 
 #[derive(Debug, Clone)]
 pub enum ExaSignal {
@@ -35,6 +37,8 @@ pub enum Instruction {
     Repl,
     Halt,
     Kill,
+
+    Rand,
 
     Noop,
     Prnt,
@@ -224,9 +228,12 @@ impl Exa {
             Instruction::Halt => Self::halt(),
             Instruction::Kill => Self::kill(),
             // misc
+            Instruction::Rand => self.rand(args),
             Instruction::Prnt => self.print(args),
             Instruction::Noop => Self::noop(),
-            _ => Err(ExaSignal::Err("Unknown instruction".to_string())),
+            
+            // pseudo-instructions [DO NOT EXECUTE]
+            Instruction::Mark => panic!("tried to execute Mark"),
         }
     }
 
@@ -254,6 +261,18 @@ impl Exa {
         clone.repl_counter = 0;
         self.repl_counter += 1;
         Ok(ExaSignal::Repl(clone))
+    }
+    
+    fn rand(&mut self, args: Vec<Arg>) -> Result<ExaSignal, ExaSignal> {
+        let num1 = self.get_number(&args[0])?;
+        let num2 = self.get_number(&args[1])?;
+        let mut rng = rand::thread_rng();
+        if num1 < num2 {
+            self.put_value(Register::Number(rng.gen_range(num1..=num2)), &args[2])?;
+        } else {
+            self.put_value(Register::Number(rng.gen_range(num2..=num1)), &args[2])?;
+        }
+        Ok(ExaSignal::Ok)
     }
 
     fn addi(&mut self, args: Vec<Arg>) -> Result<ExaSignal, ExaSignal> {

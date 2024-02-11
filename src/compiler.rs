@@ -68,6 +68,8 @@ impl FromStr for Instruction {
             "halt" => Ok(Self::Halt),
             "kill" => Ok(Self::Kill),
 
+            "rand" => Ok(Self::Rand),
+
             "noop" => Ok(Self::Noop),
             "prnt" => Ok(Self::Prnt),
             _ => Err(CompilerError::UnknownInstruction(s.to_string())),
@@ -357,6 +359,8 @@ impl CompilerConfig {
             (Instruction::Divi, vec![rn.clone(), rn.clone(), r.clone()]),
             (Instruction::Modi, vec![rn.clone(), rn.clone(), r.clone()]),
             (Instruction::Swiz, vec![rn.clone(), rn.clone(), r.clone()]),
+            
+            (Instruction::Rand, vec![rn.clone(), rn.clone(), r.clone()]),
 
             (Instruction::Test, vec![vari.clone(), c.clone(), vari.clone()]),
 
