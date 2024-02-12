@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display, str::FromStr};
+use std::{collections::HashMap, fmt::Display};
 
 use serde::{Deserialize, Serialize};
 
@@ -39,41 +39,6 @@ impl Display for CompilerError {
             Self::InvalidComparison(s) => format!("invalid comparison operator '{}'", s),
         };
         write!(f, "{}", err_msg)
-    }
-}
-
-impl FromStr for Instruction {
-    type Err = CompilerError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "copy" => Ok(Self::Copy),
-
-            "addi" => Ok(Self::Addi),
-            "subi" => Ok(Self::Subi),
-            "muli" => Ok(Self::Muli),
-            "divi" => Ok(Self::Divi),
-            "modi" => Ok(Self::Modi),
-            "swiz" => Ok(Self::Swiz),
-
-            "test" => Ok(Self::Test),
-
-            "mark" => Ok(Self::Mark),
-            "jump" => Ok(Self::Jump),
-            "fjmp" => Ok(Self::Fjmp),
-            "tjmp" => Ok(Self::Tjmp),
-
-            "link" => Ok(Self::Link),
-            "repl" => Ok(Self::Repl),
-            "halt" => Ok(Self::Halt),
-            "kill" => Ok(Self::Kill),
-
-            "rand" => Ok(Self::Rand),
-
-            "noop" => Ok(Self::Noop),
-            "prnt" => Ok(Self::Prnt),
-            _ => Err(CompilerError::UnknownInstruction(s.to_string())),
-        } 
     }
 }
 
@@ -120,6 +85,8 @@ impl Compiler {
                     continue;
                 },
             };
+            // filter comments
+            if split[0] == "note" { continue; }
             let instr = match self.parse_line(split) {
                 Ok(i) => i,
                 Err(e) => {
@@ -151,8 +118,8 @@ impl Compiler {
 
     fn split_line(&self, line: &String) -> Result<Vec<String>, CompilerError> {
         // unify comments
-        for c in self.comment_prefixes.clone() {
-            if line.starts_with(&c) {
+        for c in &self.comment_prefixes {
+            if line.starts_with(c) {
                 return Ok(vec!["note".to_string()]);
             }
         }
@@ -195,10 +162,10 @@ impl Compiler {
     }
 
     fn parse_line(&self, split_line: Vec<String>) -> Result<(Instruction, Option<Vec<Arg>>), CompilerError> {
-        // filter comments
-        if split_line[0] == "note" { return Err(CompilerError::CommentParseError); }
-        
-        let instr: Instruction = split_line[0].parse()?;
+        let instr: Instruction = match split_line[0].parse() {
+            Ok(i) => i,
+            Err(_) => return Err(CompilerError::UnknownInstruction(split_line[0].clone())),
+        };
         if split_line.len() == 1 { return Ok( (instr, None) ); }
 
         let signature = self.get_signature(&instr)?;
@@ -236,7 +203,7 @@ impl Compiler {
 
     fn get_signature(&self, instr: &Instruction) -> Result<Vec<Vec<ArgType>>, CompilerError> {
         match self.instruction_signatures.get(instr) {
-            Some(s) => Ok(s.clone()),
+            Some(s) => Ok(s.to_owned()),
             None => Err(CompilerError::InstructionNotAllowed(instr.to_owned())),
         }
     }
