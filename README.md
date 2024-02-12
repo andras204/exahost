@@ -47,7 +47,7 @@ The project is currently still work in progress, and very much incomplete.
     - [ ] wipe
     - [x] note
     - [x] noop
-    - [ ] rand
+    - [x] rand
   - [ ] Macros
   - [ ] Extra Instructions // mainly for debug
     - [x] prnt
