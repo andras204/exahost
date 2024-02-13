@@ -126,7 +126,7 @@ impl Compiler {
         
         // filter out short lines
         if line.len() < 4 {
-            return Err(CompilerError::UnknownInstruction(line.to_owned()));
+            return Err(CompilerError::UnknownInstruction(line.clone()));
         }
     
         let mut sliced: Vec<String> = vec![ line[..4].to_string() ];
@@ -142,8 +142,8 @@ impl Compiler {
                     mid_word = !mid_word;
                     if !mid_word {
                         sliced.push(arg_slice[t_begin..(x + 1)].to_string());
-                        t_begin = x + 1;
                         x += 1;
+                        t_begin = x + 1;
                     }
                 }
                 if curr_char == ' ' {

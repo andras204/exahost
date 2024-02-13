@@ -1,7 +1,7 @@
 use std::{collections::HashMap, vec::Drain};
 
 use crate::{
-    exa::{Exa, ExaSignal}, 
+    exa::{Exa, VMRequest, ExaResult}, 
     HostSignal,
 };
 
@@ -32,7 +32,7 @@ impl ExaVM {
     }
 
     pub fn step(&mut self) -> Drain<HostSignal> {
-        let results: HashMap<String, ExaSignal> = self.ready.iter_mut()
+        let results: HashMap<String, Result<(), ExaResult>> = self.ready.iter_mut()
             .map(|(k, e)| (k.clone(), e.exec()))
             .collect();
         self.process_results(results);
@@ -40,29 +40,33 @@ impl ExaVM {
         self.link_reqs.drain(..)
     }
 
-    fn process_results(&mut self, results: HashMap<String, ExaSignal>) {
-        for (k, r) in results.iter() {
-            match r {
-                ExaSignal::Ok => (),
-                ExaSignal::Err(e) => {
-                    eprintln!("[VM]: Error with {}: {}", k, e);
-                    self.halt_exa(k);
+    fn process_results(&mut self, results: HashMap<String, Result<(), ExaResult>>) {
+        for (k, res) in results.iter() {
+            match res {
+                Ok(_) => (),
+                Err(r) => match r {
+                    ExaResult::Error(e) => {
+                        println!("[VM] Error with {}: {:?}", k, e);
+                        self.halt_exa(k);
+                    },
+                    ExaResult::VMRequest(rq) => match rq {
+                        VMRequest::Halt => self.halt_exa(k),
+                        VMRequest::Kill => self.kill_exa(k),
+                        VMRequest::Repl(c) => self.add_clone(c),
+                        VMRequest::Tx => {
+                            let (n, e) = self.ready.remove_entry(k).unwrap();
+                            self.send.insert(n, e);
+                        },
+                        VMRequest::Rx => {
+                            let (n, e) = self.ready.remove_entry(k).unwrap();
+                            self.recv.insert(n, e);
+                        },
+                        VMRequest::Link(l) => {
+                            let exa = self.ready.remove(k).unwrap();
+                            self.link_reqs.push(HostSignal::Link((l.to_owned(), exa)));
+                        },
+                    }
                 },
-                ExaSignal::Halt => self.halt_exa(k),
-                ExaSignal::Kill => self.kill_exa(k),
-                ExaSignal::Repl(e) => self.add_clone(e),
-                ExaSignal::Tx => {
-                    let (n, e) = self.ready.remove_entry(k).unwrap();
-                    self.send.insert(n, e);
-                },
-                ExaSignal::Rx => {
-                    let (n, e) = self.ready.remove_entry(k).unwrap();
-                    self.recv.insert(n, e);
-                },
-                ExaSignal::Link(l) => {
-                    let exa = self.ready.remove(k).unwrap();
-                    self.link_reqs.push(HostSignal::Link((l.to_owned(), exa)));
-                }
             }
         }
     }
@@ -78,25 +82,9 @@ impl ExaVM {
 
         self.ready.insert(send.name.clone(), send);
 
-        match recv.exec() {
-            ExaSignal::Err(e) => {
-                eprintln!("[VM]: Error with {}: {}", recv.name.clone(), e);
-                return;
-            },
-            ExaSignal::Tx => {
-                self.send.insert(recv.name.clone(), recv);
-                return;
-            },
-            ExaSignal::Rx => {
-                self.recv.insert(recv.name.clone(), recv);
-                return;
-            },
-            ExaSignal::Link(l) => {
-                self.link_reqs.push(HostSignal::Link((l.to_owned(), recv)));
-                return;
-            },
-            _ => (), 
-        }
+        // call .exec on recv and handle it here to
+        // get 1 cycle instructions even with M access
+
         self.ready.insert(recv.name.clone(), recv);
     }
 
@@ -119,7 +107,6 @@ impl ExaVM {
         if self.recv.len() > 0 {
             let k = self.recv.keys().nth(0).unwrap().clone();
             self.recv.remove(&k);
-            return;
         }
     }
 }
