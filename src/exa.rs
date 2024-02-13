@@ -17,50 +17,32 @@ pub enum ExaSignal {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, EnumString, Display)]
+#[strum(serialize_all = "lowercase")]
 pub enum Instruction {
-    #[strum(ascii_case_insensitive)]
     Copy,
 
-    #[strum(ascii_case_insensitive)]
     Addi,
-    #[strum(ascii_case_insensitive)]
     Subi,
-    #[strum(ascii_case_insensitive)]
     Muli,
-    #[strum(ascii_case_insensitive)]
     Divi,
-    #[strum(ascii_case_insensitive)]
     Modi,
-    #[strum(ascii_case_insensitive)]
     Swiz,
 
-    #[strum(ascii_case_insensitive)]
     Test,
 
-    #[strum(ascii_case_insensitive)]
     Mark,
-    #[strum(ascii_case_insensitive)]
     Jump,
-    #[strum(ascii_case_insensitive)]
     Fjmp,
-    #[strum(ascii_case_insensitive)]
     Tjmp,
 
-    #[strum(ascii_case_insensitive)]
     Link,
-    #[strum(ascii_case_insensitive)]
     Repl,
-    #[strum(ascii_case_insensitive)]
     Halt,
-    #[strum(ascii_case_insensitive)]
     Kill,
 
-    #[strum(ascii_case_insensitive)]
     Rand,
 
-    #[strum(ascii_case_insensitive)]
     Noop,
-    #[strum(ascii_case_insensitive)]
     Prnt,
 }
 
