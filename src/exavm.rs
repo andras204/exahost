@@ -1,8 +1,8 @@
-use std::{collections::HashMap, vec::Drain};
+use std::collections::HashMap;
 
 use crate::{
     exa::{Exa, VMRequest, ExaResult}, 
-    HostSignal,
+    linker::LinkManager,
 };
 
 #[derive(Debug)]
@@ -10,7 +10,8 @@ pub struct ExaVM {
     ready: HashMap<String, Exa>,
     send: HashMap<String, Exa>,
     recv: HashMap<String, Exa>,
-    link_reqs: Vec<HostSignal>
+    link_reqs: Vec<(i16, Exa)>,
+    link_manager: LinkManager,
 }
 
 impl ExaVM {
@@ -20,6 +21,7 @@ impl ExaVM {
             send: HashMap::new(),
             recv: HashMap::new(),
             link_reqs: Vec::new(),
+            link_manager: LinkManager::new(),
         }
     }
 
@@ -27,17 +29,16 @@ impl ExaVM {
         self.ready.insert(exa.name.clone(), exa);
     }
 
-    pub fn add_clone(&mut self, exa: &Exa) {
+    fn add_clone(&mut self, exa: &Exa) {
         self.ready.insert(exa.name.clone(), exa.to_owned());
     }
 
-    pub fn step(&mut self) -> Drain<HostSignal> {
+    pub fn step(&mut self) {
         let results: HashMap<String, Result<(), ExaResult>> = self.ready.iter_mut()
             .map(|(k, e)| (k.clone(), e.exec()))
             .collect();
         self.process_results(results);
         self.handle_m_register();
-        self.link_reqs.drain(..)
     }
 
     fn process_results(&mut self, results: HashMap<String, Result<(), ExaResult>>) {
@@ -63,7 +64,7 @@ impl ExaVM {
                         },
                         VMRequest::Link(l) => {
                             let exa = self.ready.remove(k).unwrap();
-                            self.link_reqs.push(HostSignal::Link((l.to_owned(), exa)));
+                            self.link_reqs.push((l.to_owned(), exa));
                         },
                     }
                 },
@@ -89,7 +90,7 @@ impl ExaVM {
     }
 
     fn halt_exa(&mut self, name: &String) {
-        self.ready.remove(name);
+        self.ready.remove(name).unwrap();
     }
 
     fn kill_exa(&mut self, name: &String) {

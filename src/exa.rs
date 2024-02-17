@@ -1,4 +1,4 @@
-use std::{fmt::Display, cmp::Ordering};
+use std::{cmp::Ordering, fmt::{self, Display}};
 use serde::{Deserialize, Serialize};
 use rand::Rng;
 use strum::{EnumString, Display};
@@ -18,6 +18,21 @@ pub enum Error {
     InvalidFRegisterAccess,
     InvalidHWRegisterAccess,
     InvalidFileAccess,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let e = match self {
+            Self::OutOfInstructions => "Out of Instructions",
+            Self::DivideByZero => "Divide by Zero",
+            Self::MathWithKeywords => "Math with Keyword",
+            Self::LabelNotFound => "Label Not Found",
+            Self::InvalidFRegisterAccess => "Invalid F Register Access",
+            Self::InvalidHWRegisterAccess => "Invalid Hardware Register Access",
+            Self::InvalidFileAccess => "Invalid File Access",
+        };
+        write!(f, "{}", e)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -41,76 +56,37 @@ pub struct Exa {
     pub reg_m: Option<Register>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, EnumString, Display)]
+#[strum(serialize_all = "lowercase")]
+pub enum Instruction {
+    Copy,
+
+    Addi,
+    Subi,
+    Muli,
+    Divi,
+    Modi,
+    Swiz,
+
+    Test,
+
+    Mark,
+    Jump,
+    Fjmp,
+    Tjmp,
+
+    Link,
+    Repl,
+    Halt,
+    Kill,
+
+    Rand,
+
+    Noop,
+    Prnt,
+}
+
 impl Exa {
-    pub fn new(name: &str, instr_list: Vec<(Instruction, Option<Vec<Arg>>)>) -> Self {
-        Self {
-            name: name.to_string(),
-            instr_list,
-            instr_ptr: 0,
-            repl_counter: 0,
-            reg_x: Register::Number(0),
-            reg_t: Register::Number(0),
-            reg_m: None,
-        }
-    }
-
-    pub fn send_m(&mut self) -> Option<Register> {
-        self.instr_ptr += 1;
-        Some(self.reg_m.take().unwrap())
-    }
-
-    pub fn exec(&mut self) -> Result<(), ExaResult> {
-        if self.instr_ptr as usize == self.instr_list.len() { return Err(ExaResult::Error(Error::OutOfInstructions)); }
-        let instruction = self.instr_list[self.instr_ptr as usize].clone();
-        if instruction.0 == Instruction::Mark {
-            self.instr_ptr += 1;
-            return self.exec();
-        }
-        match self.execute_instruction(instruction) {
-            Ok(s) => {
-                self.instr_ptr += 1;
-                return Ok(s);
-            },
-            Err(e) => return Err(e),
-        }
-    }
-
-    fn execute_instruction(&mut self, (instr, args): (Instruction, Option<Vec<Arg>>)) -> Result<(), ExaResult> {
-        let args = match args {
-            Some(a) => a,
-            None => Vec::with_capacity(0),
-        };
-        match instr {
-            // I/O
-            Instruction::Copy => self.copy(args),
-            // math
-            Instruction::Addi => self.addi(args),
-            Instruction::Subi => self.subi(args),
-            Instruction::Muli => self.muli(args),
-            Instruction::Divi => self.divi(args),
-            Instruction::Modi => self.modi(args),
-            Instruction::Swiz => self.swiz(args),
-            // test
-            Instruction::Test => self.test(args),
-            // jumps
-            Instruction::Jump => self.jump(args),
-            Instruction::Tjmp => self.tjmp(args),
-            Instruction::Fjmp => self.fjmp(args),
-            // lifecycle
-            Instruction::Link => self.link(args),
-            Instruction::Repl => self.repl(args),
-            Instruction::Halt => Self::halt(),
-            Instruction::Kill => Self::kill(),
-            // misc
-            Instruction::Rand => self.rand(args),
-            Instruction::Prnt => self.print(args),
-            Instruction::Noop => Self::noop(),
-            
-            // pseudo-instructions [DO NOT EXECUTE]
-            Instruction::Mark => panic!("tried to execute Mark"),
-        }
-    }
-
     fn link(&mut self, args: Vec<Arg>) -> Result<(), ExaResult> {
         let l = self.get_number(&args[0])?;
         Err(ExaResult::VMRequest(VMRequest::Link(l)))
@@ -268,7 +244,7 @@ impl Exa {
             RegLabel::F => Err(ExaResult::Error(Error::InvalidFileAccess)),
             RegLabel::M => {
                 self.reg_m = Some(value);
-                return Err(ExaResult::VMRequest(VMRequest::Tx));
+                Err(ExaResult::VMRequest(VMRequest::Tx))
             },
             RegLabel::H(_) => Err(ExaResult::Error(Error::InvalidHWRegisterAccess)),
         }
@@ -302,40 +278,79 @@ impl Exa {
                         Register::Keyword(_) => Err(ExaResult::Error(Error::MathWithKeywords)),
                     }
                 },
-            Arg::Number(_) => return Ok(arg.number().unwrap()),
-            _ => return Err(ExaResult::Error(Error::MathWithKeywords)),
+            Arg::Number(_) => Ok(arg.number().unwrap()),
+            _ => Err(ExaResult::Error(Error::MathWithKeywords)),
         }
     }
-}
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, EnumString, Display)]
-#[strum(serialize_all = "lowercase")]
-pub enum Instruction {
-    Copy,
+    pub fn new(name: &str, instr_list: Vec<(Instruction, Option<Vec<Arg>>)>) -> Self {
+        Self {
+            name: name.to_string(),
+            instr_list,
+            instr_ptr: 0,
+            repl_counter: 0,
+            reg_x: Register::Number(0),
+            reg_t: Register::Number(0),
+            reg_m: None,
+        }
+    }
 
-    Addi,
-    Subi,
-    Muli,
-    Divi,
-    Modi,
-    Swiz,
+    pub fn send_m(&mut self) -> Option<Register> {
+        self.instr_ptr += 1;
+        Some(self.reg_m.take().unwrap())
+    }
 
-    Test,
+    pub fn exec(&mut self) -> Result<(), ExaResult> {
+        if self.instr_ptr as usize == self.instr_list.len() { return Err(ExaResult::Error(Error::OutOfInstructions)); }
+        let instruction = self.instr_list[self.instr_ptr as usize].clone();
+        if instruction.0 == Instruction::Mark {
+            self.instr_ptr += 1;
+            return self.exec();
+        }
+        match self.execute_instruction(instruction) {
+            Ok(s) => {
+                self.instr_ptr += 1;
+                Ok(s)
+            },
+            Err(e) => Err(e),
+        }
+    }
 
-    Mark,
-    Jump,
-    Fjmp,
-    Tjmp,
-
-    Link,
-    Repl,
-    Halt,
-    Kill,
-
-    Rand,
-
-    Noop,
-    Prnt,
+    fn execute_instruction(&mut self, (instr, args): (Instruction, Option<Vec<Arg>>)) -> Result<(), ExaResult> {
+        let args = match args {
+            Some(a) => a,
+            None => Vec::with_capacity(0),
+        };
+        match instr {
+            // I/O
+            Instruction::Copy => self.copy(args),
+            // math
+            Instruction::Addi => self.addi(args),
+            Instruction::Subi => self.subi(args),
+            Instruction::Muli => self.muli(args),
+            Instruction::Divi => self.divi(args),
+            Instruction::Modi => self.modi(args),
+            Instruction::Swiz => self.swiz(args),
+            // test
+            Instruction::Test => self.test(args),
+            // jumps
+            Instruction::Jump => self.jump(args),
+            Instruction::Tjmp => self.tjmp(args),
+            Instruction::Fjmp => self.fjmp(args),
+            // lifecycle
+            Instruction::Link => self.link(args),
+            Instruction::Repl => self.repl(args),
+            Instruction::Halt => Self::halt(),
+            Instruction::Kill => Self::kill(),
+            // misc
+            Instruction::Rand => self.rand(args),
+            Instruction::Prnt => self.print(args),
+            Instruction::Noop => Self::noop(),
+            
+            // pseudo-instructions [DO NOT EXECUTE]
+            Instruction::Mark => panic!("tried to execute Mark"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

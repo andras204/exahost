@@ -1,10 +1,8 @@
-use std::{thread, time::Duration};
-
 use exahost::Host;
 
 fn main() {
     let mut rhizome = Host::new("Rhizome", "localhost:6800");
-    //rhizome.connect("localhost:6800");
+    // rhizome.connect("localhost:6800");
 
     let xa = rhizome.compile_exa("XA", vec![
         "prnt 'Fibonacci'",
@@ -18,9 +16,8 @@ fn main() {
     ].into_iter().map(|s| s.to_string()).collect()).unwrap();
 
     rhizome.add_exa(xa);
-
+    
     for _ in 0..50 {
         rhizome.step();
-        //thread::sleep(Duration::from_millis(250));
     }
 }
