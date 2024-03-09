@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display};
 
 use serde::{Deserialize, Serialize};
 
-use crate::exa::{Arg, Comp, RegLabel, Instruction};
+use crate::exa::{Arg, Comp, Instruction, RegLabel};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArgType {
@@ -31,11 +31,15 @@ impl Display for CompilerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let err_msg = match self {
             Self::UnknownInstruction(s) => format!("unknown instruction '{}'", s),
-            Self::InstructionNotAllowed(i) => format!("use of {:?} disallowed by compiler configuration", i),
+            Self::InstructionNotAllowed(i) => {
+                format!("use of {:?} disallowed by compiler configuration", i)
+            }
             Self::CommentParseError => "comments cannot be parsed".to_string(),
             Self::ArgTypeMismatch(s, t) => format!("cannot convert '{}' to {:?}", s, t),
             Self::NumberOutOfBounds => "number too large or too small".to_string(),
-            Self::SignatureMismatch(i, s, g) => format!("{:?} requires {} arguments, found {}", i, s, g),
+            Self::SignatureMismatch(i, s, g) => {
+                format!("{:?} requires {} arguments, found {}", i, s, g)
+            }
             Self::InvalidComparison(s) => format!("invalid comparison operator '{}'", s),
         };
         write!(f, "{}", err_msg)
@@ -73,26 +77,33 @@ impl Compiler {
         }
     }
 
-    pub fn compile(&self, source: Vec<String>) -> Result<Vec<(Instruction, Option<Vec<Arg>>)>, Vec<String>> {
+    pub fn compile(
+        &self,
+        source: Vec<String>,
+    ) -> Result<Vec<(Instruction, Option<Vec<Arg>>)>, Vec<String>> {
         let mut errs: Vec<String> = Vec::new();
         let mut compiled: Vec<(Instruction, Option<Vec<Arg>>)> = Vec::with_capacity(source.len());
-        if source.len() == 0 { errs.push("nothing to compile".to_string()); }
+        if source.len() == 0 {
+            errs.push("nothing to compile".to_string());
+        }
         for x in 0..source.len() {
             let split = match self.split_line(&source[x]) {
                 Ok(s) => s,
                 Err(e) => {
                     errs.push(format!("Error on line {}: {}", x, e));
                     continue;
-                },
+                }
             };
             // filter comments
-            if split[0] == "note" { continue; }
+            if split[0] == "note" {
+                continue;
+            }
             let instr = match self.parse_line(split) {
                 Ok(i) => i,
                 Err(e) => {
                     errs.push(format!("Error on line {}: {}", x, e));
                     continue;
-                },
+                }
             };
             // check for multi M use
             if !self.allow_multi_m {
@@ -100,9 +111,11 @@ impl Compiler {
                 match instr.1.clone() {
                     Some(args) => {
                         for a in args {
-                            if a == Arg::Register(RegLabel::M) { ms += 1; }
+                            if a == Arg::Register(RegLabel::M) {
+                                ms += 1;
+                            }
                         }
-                    },
+                    }
                     None => (),
                 }
                 if ms > 1 {
@@ -112,7 +125,9 @@ impl Compiler {
             }
             compiled.push(instr);
         }
-        if errs.len() > 0 { return Err(errs); }
+        if errs.len() > 0 {
+            return Err(errs);
+        }
         Ok(compiled)
     }
 
@@ -123,14 +138,14 @@ impl Compiler {
                 return Ok(vec!["note".to_string()]);
             }
         }
-        
+
         // filter out short lines
         if line.len() < 4 {
             return Err(CompilerError::UnknownInstruction(line.clone()));
         }
-    
-        let mut sliced: Vec<String> = vec![ line[..4].to_string() ];
-    
+
+        let mut sliced: Vec<String> = vec![line[..4].to_string()];
+
         if line.len() > 5 {
             let arg_slice = &line[5..];
             let mut t_begin: usize = 0;
@@ -161,21 +176,30 @@ impl Compiler {
         Ok(sliced)
     }
 
-    fn parse_line(&self, split_line: Vec<String>) -> Result<(Instruction, Option<Vec<Arg>>), CompilerError> {
+    fn parse_line(
+        &self,
+        split_line: Vec<String>,
+    ) -> Result<(Instruction, Option<Vec<Arg>>), CompilerError> {
         let instr: Instruction = match split_line[0].parse() {
             Ok(i) => i,
             Err(_) => return Err(CompilerError::UnknownInstruction(split_line[0].clone())),
         };
-        if split_line.len() == 1 { return Ok( (instr, None) ); }
+        if split_line.len() == 1 {
+            return Ok((instr, None));
+        }
 
         let signature = self.get_signature(&instr)?;
 
         let arg_slice = &split_line[1..];
 
         if signature.len() != arg_slice.len() {
-            return Err(CompilerError::SignatureMismatch(instr, signature.len() as u8, arg_slice.len() as u8));
+            return Err(CompilerError::SignatureMismatch(
+                instr,
+                signature.len() as u8,
+                arg_slice.len() as u8,
+            ));
         }
-        
+
         let mut args: Vec<Arg> = Vec::with_capacity(3);
 
         for x in 0..signature.len() {
@@ -186,19 +210,20 @@ impl Compiler {
                     Ok(a) => {
                         arg = Some(a);
                         break;
-                    },
-                    Err(e) => {
-                        match e {
-                            CompilerError::NumberOutOfBounds => return Err(e),
-                            _ => err = Some(e),
-                        }
+                    }
+                    Err(e) => match e {
+                        CompilerError::NumberOutOfBounds => return Err(e),
+                        _ => err = Some(e),
                     },
                 }
             }
-            if arg != None { args.push(arg.unwrap()); }
-            else { return Err(err.unwrap()); }
+            if arg != None {
+                args.push(arg.unwrap());
+            } else {
+                return Err(err.unwrap());
+            }
         }
-        Ok( (instr, Some(args)) )
+        Ok((instr, Some(args)))
     }
 
     fn get_signature(&self, instr: &Instruction) -> Result<Vec<Vec<ArgType>>, CompilerError> {
@@ -212,22 +237,31 @@ impl Compiler {
         match at {
             ArgType::Register => {
                 if ("xtfm".contains(str) && str.len() == 1) || str.starts_with('#') {
-                    return match &str[..] {
+                    match &str[..] {
                         "x" => Ok(Arg::Register(RegLabel::X)),
                         "t" => Ok(Arg::Register(RegLabel::T)),
                         "f" => Ok(Arg::Register(RegLabel::F)),
                         "m" => Ok(Arg::Register(RegLabel::M)),
                         _ => Ok(Arg::Register(RegLabel::H(str.to_owned()))),
-                    };
+                    }
+                } else {
+                    Err(CompilerError::ArgTypeMismatch(
+                        str.to_owned(),
+                        at.to_owned(),
+                    ))
                 }
-                else { return Err(CompilerError::ArgTypeMismatch(str.to_owned(), at.to_owned())); }
-            },
+            }
             ArgType::Number => match str.parse::<i16>() {
                 Ok(n) => {
-                    if n < -9999 || n > 9999 { return Err(CompilerError::NumberOutOfBounds); }
-                    return Ok(Arg::Number(n));
-                },
-                Err(_) => return Err(CompilerError::ArgTypeMismatch(str.to_owned(), at.to_owned())),
+                    if n < -9999 || n > 9999 {
+                        return Err(CompilerError::NumberOutOfBounds);
+                    }
+                    Ok(Arg::Number(n))
+                }
+                Err(_) => Err(CompilerError::ArgTypeMismatch(
+                    str.to_owned(),
+                    at.to_owned(),
+                )),
             },
             ArgType::Comparison => {
                 if self.comparisons.contains(str) {
@@ -238,19 +272,28 @@ impl Compiler {
                         ">=" => Comp::Ge,
                         "<=" => Comp::Le,
                         "!=" => Comp::Ne,
-                        _ => return Err(CompilerError::InvalidComparison(str.to_owned()))
+                        _ => return Err(CompilerError::InvalidComparison(str.to_owned())),
                     };
-                    return Ok(Arg::Comp(comp));
+                    Ok(Arg::Comp(comp))
+                } else {
+                    Err(CompilerError::ArgTypeMismatch(
+                        str.to_owned(),
+                        at.to_owned(),
+                    ))
                 }
-                else { return Err(CompilerError::ArgTypeMismatch(str.to_owned(), at.to_owned())); }
             }
             ArgType::Keyword => {
-                if str.starts_with(self.keyword_delimiter) && str.ends_with(self.keyword_delimiter) {
-                    return Ok(Arg::Keyword(str.to_owned()));
+                if str.starts_with(self.keyword_delimiter) && str.ends_with(self.keyword_delimiter)
+                {
+                    Ok(Arg::Keyword(str.to_owned()))
+                } else {
+                    Err(CompilerError::ArgTypeMismatch(
+                        str.to_owned(),
+                        at.to_owned(),
+                    ))
                 }
-                else { return Err(CompilerError::ArgTypeMismatch(str.to_owned(), at.to_owned())); }
-            },
-            ArgType::Label => return Ok(Arg::Label(str.to_owned())),
+            }
+            ArgType::Label => Ok(Arg::Label(str.to_owned())),
         }
     }
 }
@@ -267,19 +310,28 @@ pub struct CompilerConfig {
 
 impl CompilerConfig {
     pub fn default() -> Self {
-        Self::custom(false, false, false, false, '\'', vec![
-            "note",
-            ";;",
-        ].into_iter().map(|s| s.to_string()).collect())
+        Self::custom(
+            false,
+            false,
+            false,
+            false,
+            '\'',
+            ["note", ";;"].into_iter().map(|s| s.to_string()).collect(),
+        )
     }
 
     pub fn extended() -> Self {
-        Self::custom(true, true, true, true, '\'', vec![
-            "note",
-            ";;",
-            "//",
-            "#",
-        ].into_iter().map(|s| s.to_string()).collect())
+        Self::custom(
+            true,
+            true,
+            true,
+            true,
+            '\'',
+            ["note", ";;", "//", "#"]
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect(),
+        )
     }
 
     pub fn custom(
@@ -302,8 +354,11 @@ impl CompilerConfig {
 
     pub fn generate_comparisons(&self) -> Vec<String> {
         match self.full_comparisons {
-            true => vec!["=", ">", "<", ">=", "<=", "!="].into_iter().map(|s| s.to_string()).collect(),
-            false => vec!["=", ">", "<"].into_iter().map(|s| s.to_string()).collect(),
+            true => ["=", ">", "<", ">=", "<=", "!="]
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect(),
+            false => ["=", ">", "<"].into_iter().map(|s| s.to_string()).collect(),
         }
     }
 
@@ -319,27 +374,23 @@ impl CompilerConfig {
 
         let mut sigs: HashMap<Instruction, Vec<Vec<ArgType>>> = HashMap::from_iter([
             (Instruction::Copy, vec![vari.clone(), r.clone()]),
-
             (Instruction::Addi, vec![rn.clone(), rn.clone(), r.clone()]),
             (Instruction::Subi, vec![rn.clone(), rn.clone(), r.clone()]),
             (Instruction::Muli, vec![rn.clone(), rn.clone(), r.clone()]),
             (Instruction::Divi, vec![rn.clone(), rn.clone(), r.clone()]),
             (Instruction::Modi, vec![rn.clone(), rn.clone(), r.clone()]),
             (Instruction::Swiz, vec![rn.clone(), rn.clone(), r.clone()]),
-            
             (Instruction::Rand, vec![rn.clone(), rn.clone(), r.clone()]),
-
-            (Instruction::Test, vec![vari.clone(), c.clone(), vari.clone()]),
-
+            (
+                Instruction::Test,
+                vec![vari.clone(), c.clone(), vari.clone()],
+            ),
             (Instruction::Mark, vec![l.clone()]),
             (Instruction::Jump, vec![l.clone()]),
             (Instruction::Fjmp, vec![l.clone()]),
             (Instruction::Tjmp, vec![l.clone()]),
-
             (Instruction::Repl, vec![l.clone()]),
-
             (Instruction::Link, vec![rn.clone()]),
-
             (Instruction::Noop, vec![]),
             (Instruction::Halt, vec![]),
             (Instruction::Kill, vec![]),
