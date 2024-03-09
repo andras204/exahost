@@ -45,7 +45,7 @@ pub enum VMRequest {
     Halt,
     Kill,
     Link(i16),
-    Repl(Exa),
+    Repl(Box<Exa>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -113,7 +113,7 @@ impl Exa {
         clone.name.push_str(&format!(":{}", self.repl_counter));
         clone.repl_counter = 0;
         self.repl_counter += 1;
-        Err(ExaResult::VMRequest(VMRequest::Repl(clone)))
+        Err(ExaResult::VMRequest(VMRequest::Repl(Box::new(clone))))
     }
 
     fn rand(&mut self, args: Vec<Arg>) -> Result<(), ExaResult> {
@@ -185,15 +185,14 @@ impl Exa {
     fn test(&mut self, args: Vec<Arg>) -> Result<(), ExaResult> {
         let v1 = self.get_value(&args[0])?;
         let v2 = self.get_value(&args[2])?;
-        let eval;
-        match args[1].comp().unwrap() {
-            Comp::Eq => eval = v1 == v2,
-            Comp::Gt => eval = v1 > v2,
-            Comp::Lt => eval = v1 < v2,
-            Comp::Ge => eval = v1 >= v2,
-            Comp::Le => eval = v1 <= v2,
-            Comp::Ne => eval = v1 != v2,
-        }
+        let eval = match args[1].comp().unwrap() {
+            Comp::Eq => v1 == v2,
+            Comp::Gt => v1 > v2,
+            Comp::Lt => v1 < v2,
+            Comp::Ge => v1 >= v2,
+            Comp::Le => v1 <= v2,
+            Comp::Ne => v1 != v2,
+        };
         self.reg_t = Register::Number(eval as i16);
         Ok(())
     }
@@ -246,8 +245,14 @@ impl Exa {
             Register::Keyword(w) => Register::Keyword(w),
         };
         match target.register().unwrap() {
-            RegLabel::X => Ok(self.reg_x = value),
-            RegLabel::T => Ok(self.reg_t = value),
+            RegLabel::X => {
+                self.reg_x = value;
+                Ok(())
+            }
+            RegLabel::T => {
+                self.reg_t = value;
+                Ok(())
+            }
             RegLabel::F => Err(ExaResult::Error(Error::InvalidFileAccess)),
             RegLabel::M => {
                 self.reg_m = Some(value);
@@ -274,7 +279,7 @@ impl Exa {
         }
     }
 
-    fn get_number<'a>(&'a mut self, arg: &Arg) -> Result<i16, ExaResult> {
+    fn get_number(&mut self, arg: &Arg) -> Result<i16, ExaResult> {
         match arg {
             Arg::Register(_) => {
                 let result = self.get_value(arg)?;
@@ -407,10 +412,7 @@ impl Arg {
 
     pub fn is_reg_m(&self) -> bool {
         match self {
-            Arg::Register(r) => match r {
-                RegLabel::M => true,
-                _ => false,
-            },
+            Arg::Register(r) => matches!(r, RegLabel::M),
             _ => false,
         }
     }

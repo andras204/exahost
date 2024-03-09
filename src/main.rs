@@ -1,19 +1,18 @@
-use std::io::Write;
 use std::net::TcpStream;
 use std::thread;
 use std::time::Duration;
 
-use exahost::linker::{LinkManager, Message, MessageType};
+use exahost::linker::{LinkManager, Message};
 use exahost::Host;
 
 fn main() {
     let mut rhizome = Host::new("Rhizome", "localhost:6800");
     // rhizome.connect("localhost:6800");
 
-    let asd = thread::spawn(|| {
-        let lm = LinkManager::new();
-        lm.start_listening("0.0.0.0:9800");
-    });
+    // let asd = thread::spawn(|| {
+    //     let lm = LinkManager::new();
+    //     lm.start_listening("0.0.0.0:9800");
+    // });
 
     let xa = rhizome
         .compile_exa(
@@ -34,19 +33,19 @@ fn main() {
         )
         .unwrap();
 
-    let bin = bincode::serialize(&Message::exa_data(xa)).unwrap();
+    let bin = bincode::serialize(&xa).unwrap();
 
-    let mut stream = TcpStream::connect("localhost:9800").unwrap();
+    // let mut stream = TcpStream::connect("localhost:9800").unwrap();
     // println!("dropping connection");
     // drop(stream);
 
-    asd.join().unwrap();
+    // asd.join().unwrap();
 
-    // rhizome.add_exa(xa);
+    rhizome.add_exa(bincode::deserialize(&bin).unwrap());
 
-    thread::sleep(Duration::from_millis(1000));
+    // thread::sleep(Duration::from_millis(1000));
 
-    // for _ in 0..50 {
-    //     rhizome.step();
-    // }
+    for _ in 0..50 {
+        rhizome.step();
+    }
 }

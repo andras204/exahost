@@ -1,13 +1,7 @@
-use std::{
-    collections::HashMap,
-    net::SocketAddr,
-    sync::Arc,
-    sync::Mutex,
-    thread,
-};
-use serde::{Deserialize, Serialize};
-use flume::{Receiver, Sender};
 use bincode;
+use flume::{Receiver, Sender};
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc, sync::Mutex, thread};
 
 use crate::Exa;
 
@@ -18,7 +12,6 @@ use tokio::{
     select,
     // sync::Mutex,
 };
-
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Message {
@@ -83,7 +76,7 @@ impl Link {
             stream: BufStream::new(stream),
         }
     }
-    
+
     async fn handle_connection(&mut self) {
         let recv = self.input_recv.clone();
         loop {
@@ -140,7 +133,7 @@ impl Link {
         if self.stream.read_exact(&mut len_buf).await.is_err() {
             return Err(ConnectionError::Closed);
         }
-        
+
         let len = match bincode::deserialize::<usize>(&len_buf) {
             Ok(len) => len,
             Err(_) => return Err(ConnectionError::BadMessage),
@@ -179,33 +172,30 @@ struct LinkHandle {
 
 impl LinkHandle {
     fn new(sender: Sender<Message>, reciever: Receiver<Message>) -> Self {
-        Self {
-            sender,
-            reciever,
-        }
+        Self { sender, reciever }
     }
-    
+
     fn send(&self, message: Message) -> Result<(), ()> {
         match self.sender.send(message) {
             Ok(_) => Ok(()),
             Err(_) => Err(()),
         }
     }
-    
+
     async fn send_async(&self, message: Message) -> Result<(), ()> {
         match self.sender.send_async(message).await {
             Ok(_) => Ok(()),
             Err(_) => Err(()),
         }
     }
-    
+
     fn recv(&self) -> Result<Message, ()> {
         match self.reciever.recv() {
             Ok(m) => Ok(m),
             Err(_) => Err(()),
         }
     }
-    
+
     async fn recv_async(&self) -> Result<Message, ()> {
         match self.reciever.recv_async().await {
             Ok(m) => Ok(m),
@@ -220,6 +210,12 @@ pub struct LinkManager {
     exa_queue: Arc<Mutex<Vec<Exa>>>,
 }
 
+impl Default for LinkManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LinkManager {
     pub fn new() -> Self {
         Self {
@@ -228,7 +224,7 @@ impl LinkManager {
         }
     }
 
-    pub fn send_exa(&self, link: i16, exa: Exa) -> Result<(), ()>  {
+    pub fn send_exa(&self, link: i16, exa: Exa) -> Result<(), ()> {
         let lhs = self.link_handles.lock().unwrap();
         match lhs.get(&link) {
             Some(lh) => lh.send(Message::exa_data(exa)).unwrap(),
@@ -239,7 +235,9 @@ impl LinkManager {
 
     pub fn recieve_exas(&self) -> Option<Vec<Exa>> {
         let mut exa_q = self.exa_queue.lock().unwrap();
-        if exa_q.len() == 0 { return None; }
+        if exa_q.len() == 0 {
+            return None;
+        }
         Some(exa_q.drain(..).collect())
     }
 
@@ -259,8 +257,7 @@ impl LinkManager {
     async fn listen_loop(
         addr: impl ToSocketAddrs,
         link_handles: Arc<Mutex<HashMap<i16, LinkHandle>>>,
-    ) -> Result<(), io::Error>
-    {
+    ) -> Result<(), io::Error> {
         let listener = TcpListener::bind(addr).await?;
         loop {
             let (stream, peer_addr) = listener.accept().await?;
@@ -270,7 +267,8 @@ impl LinkManager {
                 let (sender, rx) = flume::unbounded();
                 let (tx, reciever) = flume::unbounded();
                 let mut link = Link::new(rx, tx, stream);
-                { // scope to release mutex sooner
+                {
+                    // scope to release mutex sooner
                     let mut lh = link_handles.lock().unwrap();
                     lh.insert(1, LinkHandle::new(sender, reciever));
                 }
@@ -279,7 +277,5 @@ impl LinkManager {
         }
     }
 
-    async fn collect_incoming() {
-        
-    }
+    async fn collect_incoming() {}
 }

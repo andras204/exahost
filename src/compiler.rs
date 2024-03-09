@@ -55,6 +55,12 @@ pub struct Compiler {
     comment_prefixes: Vec<String>,
 }
 
+impl Default for Compiler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Compiler {
     pub fn new() -> Self {
         let config = CompilerConfig::default();
@@ -83,11 +89,11 @@ impl Compiler {
     ) -> Result<Vec<(Instruction, Option<Vec<Arg>>)>, Vec<String>> {
         let mut errs: Vec<String> = Vec::new();
         let mut compiled: Vec<(Instruction, Option<Vec<Arg>>)> = Vec::with_capacity(source.len());
-        if source.len() == 0 {
+        if source.is_empty() {
             errs.push("nothing to compile".to_string());
         }
-        for x in 0..source.len() {
-            let split = match self.split_line(&source[x]) {
+        for (x, line) in source.iter().enumerate() {
+            let split = match self.split_line(line) {
                 Ok(s) => s,
                 Err(e) => {
                     errs.push(format!("Error on line {}: {}", x, e));
@@ -108,15 +114,12 @@ impl Compiler {
             // check for multi M use
             if !self.allow_multi_m {
                 let mut ms = 0;
-                match instr.1.clone() {
-                    Some(args) => {
-                        for a in args {
-                            if a == Arg::Register(RegLabel::M) {
-                                ms += 1;
-                            }
+                if let Some(args) = instr.1.clone() {
+                    for a in args {
+                        if a == Arg::Register(RegLabel::M) {
+                            ms += 1;
                         }
                     }
-                    None => (),
                 }
                 if ms > 1 {
                     errs.push(format!("Error on line {}: multiple M use not allowed", x));
@@ -125,13 +128,13 @@ impl Compiler {
             }
             compiled.push(instr);
         }
-        if errs.len() > 0 {
+        if !errs.is_empty() {
             return Err(errs);
         }
         Ok(compiled)
     }
 
-    fn split_line(&self, line: &String) -> Result<Vec<String>, CompilerError> {
+    fn split_line(&self, line: &str) -> Result<Vec<String>, CompilerError> {
         // unify comments
         for c in &self.comment_prefixes {
             if line.starts_with(c) {
@@ -141,7 +144,7 @@ impl Compiler {
 
         // filter out short lines
         if line.len() < 4 {
-            return Err(CompilerError::UnknownInstruction(line.clone()));
+            return Err(CompilerError::UnknownInstruction(line.to_owned()));
         }
 
         let mut sliced: Vec<String> = vec![line[..4].to_string()];
@@ -161,11 +164,9 @@ impl Compiler {
                         t_begin = x + 1;
                     }
                 }
-                if curr_char == ' ' {
-                    if !mid_word {
-                        sliced.push(arg_slice[t_begin..x].to_string());
-                        t_begin = x + 1;
-                    }
+                if curr_char == ' ' && !mid_word {
+                    sliced.push(arg_slice[t_begin..x].to_string());
+                    t_begin = x + 1;
                 }
                 x += 1;
             }
@@ -206,7 +207,7 @@ impl Compiler {
             let mut err: Option<CompilerError> = None;
             let mut arg: Option<Arg> = None;
             for t in &signature[x] {
-                match self.try_parse_arg(&arg_slice[x], &t) {
+                match self.try_parse_arg(&arg_slice[x], t) {
                     Ok(a) => {
                         arg = Some(a);
                         break;
@@ -217,8 +218,8 @@ impl Compiler {
                     },
                 }
             }
-            if arg != None {
-                args.push(arg.unwrap());
+            if let Some(a) = arg {
+                args.push(a);
             } else {
                 return Err(err.unwrap());
             }
@@ -253,7 +254,7 @@ impl Compiler {
             }
             ArgType::Number => match str.parse::<i16>() {
                 Ok(n) => {
-                    if n < -9999 || n > 9999 {
+                    if !(-9999..=9999).contains(&n) {
                         return Err(CompilerError::NumberOutOfBounds);
                     }
                     Ok(Arg::Number(n))
@@ -316,7 +317,10 @@ impl CompilerConfig {
             false,
             false,
             '\'',
-            ["note", ";;"].into_iter().map(|s| s.to_string()).collect(),
+            vec!["note", ";;"]
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect(),
         )
     }
 
@@ -327,7 +331,7 @@ impl CompilerConfig {
             true,
             true,
             '\'',
-            ["note", ";;", "//", "#"]
+            vec!["note", ";;", "//", "#"]
                 .into_iter()
                 .map(|s| s.to_string())
                 .collect(),
@@ -354,11 +358,14 @@ impl CompilerConfig {
 
     pub fn generate_comparisons(&self) -> Vec<String> {
         match self.full_comparisons {
-            true => ["=", ">", "<", ">=", "<=", "!="]
+            true => vec!["=", ">", "<", ">=", "<=", "!="]
                 .into_iter()
                 .map(|s| s.to_string())
                 .collect(),
-            false => ["=", ">", "<"].into_iter().map(|s| s.to_string()).collect(),
+            false => vec!["=", ">", "<"]
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect(),
         }
     }
 

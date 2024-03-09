@@ -1,16 +1,16 @@
 use std::net::ToSocketAddrs;
 
-use exavm::ExaVM;
 use compiler::Compiler;
 use exa::Exa;
+use exavm::ExaVM;
 use serde::{Deserialize, Serialize};
 
 use crate::compiler::CompilerConfig;
 
-pub mod linker;
-pub mod exavm;
-pub mod exa;
 pub mod compiler;
+pub mod exa;
+pub mod exavm;
+pub mod linker;
 
 pub struct Host {
     host_name: String,
