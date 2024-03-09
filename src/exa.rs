@@ -1,7 +1,10 @@
-use std::{cmp::Ordering, fmt::{self, Display}};
-use serde::{Deserialize, Serialize};
 use rand::Rng;
-use strum::{EnumString, Display};
+use serde::{Deserialize, Serialize};
+use std::{
+    cmp::Ordering,
+    fmt::{self, Display},
+};
+use strum::{Display, EnumString};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExaResult {
@@ -42,7 +45,7 @@ pub enum VMRequest {
     Halt,
     Kill,
     Link(i16),
-    Repl(Exa),
+    Repl(Box<Exa>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -110,9 +113,9 @@ impl Exa {
         clone.name.push_str(&format!(":{}", self.repl_counter));
         clone.repl_counter = 0;
         self.repl_counter += 1;
-        Err(ExaResult::VMRequest(VMRequest::Repl(clone)))
+        Err(ExaResult::VMRequest(VMRequest::Repl(Box::new(clone))))
     }
-    
+
     fn rand(&mut self, args: Vec<Arg>) -> Result<(), ExaResult> {
         let num1 = self.get_number(&args[0])?;
         let num2 = self.get_number(&args[1])?;
@@ -182,23 +185,24 @@ impl Exa {
     fn test(&mut self, args: Vec<Arg>) -> Result<(), ExaResult> {
         let v1 = self.get_value(&args[0])?;
         let v2 = self.get_value(&args[2])?;
-        let eval;
-        match args[1].comp().unwrap() {
-            Comp::Eq => eval = v1 == v2,
-            Comp::Gt => eval = v1 > v2,
-            Comp::Lt => eval = v1 < v2,
-            Comp::Ge => eval = v1 >= v2,
-            Comp::Le => eval = v1 <= v2,
-            Comp::Ne => eval = v1 != v2,
-        }
+        let eval = match args[1].comp().unwrap() {
+            Comp::Eq => v1 == v2,
+            Comp::Gt => v1 > v2,
+            Comp::Lt => v1 < v2,
+            Comp::Ge => v1 >= v2,
+            Comp::Le => v1 <= v2,
+            Comp::Ne => v1 != v2,
+        };
         self.reg_t = Register::Number(eval as i16);
         Ok(())
     }
 
     fn jump(&mut self, args: Vec<Arg>) -> Result<(), ExaResult> {
         for x in 0..self.instr_list.len() {
-            if self.instr_list[x].0 != Instruction::Mark { continue; }
-            if  self.instr_list[x].1.clone().unwrap()[0] == args[0] {
+            if self.instr_list[x].0 != Instruction::Mark {
+                continue;
+            }
+            if self.instr_list[x].1.clone().unwrap()[0] == args[0] {
                 self.instr_ptr = x as u8;
                 return Ok(());
             }
@@ -209,15 +213,17 @@ impl Exa {
     fn tjmp(&mut self, args: Vec<Arg>) -> Result<(), ExaResult> {
         if self.get_value(&Arg::reg_t()).unwrap() != Register::Number(0) {
             self.jump(args)
+        } else {
+            Ok(())
         }
-        else { Ok(()) }
     }
 
     fn fjmp(&mut self, args: Vec<Arg>) -> Result<(), ExaResult> {
         if self.get_value(&Arg::reg_t()).unwrap() == Register::Number(0) {
             self.jump(args)
+        } else {
+            Ok(())
         }
-        else { Ok(()) }
     }
 
     fn copy(&mut self, args: Vec<Arg>) -> Result<(), ExaResult> {
@@ -239,13 +245,19 @@ impl Exa {
             Register::Keyword(w) => Register::Keyword(w),
         };
         match target.register().unwrap() {
-            RegLabel::X => Ok(self.reg_x = value),
-            RegLabel::T => Ok(self.reg_t = value),
+            RegLabel::X => {
+                self.reg_x = value;
+                Ok(())
+            }
+            RegLabel::T => {
+                self.reg_t = value;
+                Ok(())
+            }
             RegLabel::F => Err(ExaResult::Error(Error::InvalidFileAccess)),
             RegLabel::M => {
                 self.reg_m = Some(value);
                 Err(ExaResult::VMRequest(VMRequest::Tx))
-            },
+            }
             RegLabel::H(_) => Err(ExaResult::Error(Error::InvalidHWRegisterAccess)),
         }
     }
@@ -259,25 +271,23 @@ impl Exa {
             RegLabel::X => Ok(self.reg_x.clone()),
             RegLabel::T => Ok(self.reg_t.clone()),
             RegLabel::F => Err(ExaResult::Error(Error::InvalidFileAccess)),
-            RegLabel::M => {
-                match self.reg_m.take() {
-                    Some(r) => Ok(r),
-                    None => Err(ExaResult::VMRequest(VMRequest::Rx)),
-                }
+            RegLabel::M => match self.reg_m.take() {
+                Some(r) => Ok(r),
+                None => Err(ExaResult::VMRequest(VMRequest::Rx)),
             },
             RegLabel::H(_) => Err(ExaResult::Error(Error::InvalidHWRegisterAccess)),
         }
     }
 
-    fn get_number<'a>(&'a mut self, arg: &Arg) -> Result<i16, ExaResult> {
+    fn get_number(&mut self, arg: &Arg) -> Result<i16, ExaResult> {
         match arg {
-            Arg::Register(_) =>  {
-                    let result = self.get_value(arg)?;
-                    match result {
-                        Register::Number(n) => Ok(n),
-                        Register::Keyword(_) => Err(ExaResult::Error(Error::MathWithKeywords)),
-                    }
-                },
+            Arg::Register(_) => {
+                let result = self.get_value(arg)?;
+                match result {
+                    Register::Number(n) => Ok(n),
+                    Register::Keyword(_) => Err(ExaResult::Error(Error::MathWithKeywords)),
+                }
+            }
             Arg::Number(_) => Ok(arg.number().unwrap()),
             _ => Err(ExaResult::Error(Error::MathWithKeywords)),
         }
@@ -301,7 +311,9 @@ impl Exa {
     }
 
     pub fn exec(&mut self) -> Result<(), ExaResult> {
-        if self.instr_ptr as usize == self.instr_list.len() { return Err(ExaResult::Error(Error::OutOfInstructions)); }
+        if self.instr_ptr as usize == self.instr_list.len() {
+            return Err(ExaResult::Error(Error::OutOfInstructions));
+        }
         let instruction = self.instr_list[self.instr_ptr as usize].clone();
         if instruction.0 == Instruction::Mark {
             self.instr_ptr += 1;
@@ -311,12 +323,15 @@ impl Exa {
             Ok(s) => {
                 self.instr_ptr += 1;
                 Ok(s)
-            },
+            }
             Err(e) => Err(e),
         }
     }
 
-    fn execute_instruction(&mut self, (instr, args): (Instruction, Option<Vec<Arg>>)) -> Result<(), ExaResult> {
+    fn execute_instruction(
+        &mut self,
+        (instr, args): (Instruction, Option<Vec<Arg>>),
+    ) -> Result<(), ExaResult> {
         let args = match args {
             Some(a) => a,
             None => Vec::with_capacity(0),
@@ -346,7 +361,7 @@ impl Exa {
             Instruction::Rand => self.rand(args),
             Instruction::Prnt => self.print(args),
             Instruction::Noop => Self::noop(),
-            
+
             // pseudo-instructions [DO NOT EXECUTE]
             Instruction::Mark => panic!("tried to execute Mark"),
         }
@@ -397,11 +412,8 @@ impl Arg {
 
     pub fn is_reg_m(&self) -> bool {
         match self {
-            Arg::Register(r) => match r {
-                RegLabel::M => true,
-                _ => false,
-            },
-            _ => false
+            Arg::Register(r) => matches!(r, RegLabel::M),
+            _ => false,
         }
     }
 }
@@ -460,7 +472,7 @@ impl Register {
         match arg {
             Arg::Number(n) => Ok(Register::Number(*n)),
             Arg::Keyword(w) => Ok(Register::Keyword(w.clone())),
-            _ => Err("Invalid token type")
+            _ => Err("Invalid token type"),
         }
     }
 }
