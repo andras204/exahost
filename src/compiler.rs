@@ -116,7 +116,7 @@ impl Compiler {
                 let mut ms = 0;
                 if let Some(args) = instr.1.clone() {
                     for a in args {
-                        if a == Arg::Register(RegLabel::M) {
+                        if a == Arg::RegLabel(RegLabel::M) {
                             ms += 1;
                         }
                     }
@@ -239,11 +239,11 @@ impl Compiler {
             ArgType::Register => {
                 if ("xtfm".contains(str) && str.len() == 1) || str.starts_with('#') {
                     match &str[..] {
-                        "x" => Ok(Arg::Register(RegLabel::X)),
-                        "t" => Ok(Arg::Register(RegLabel::T)),
-                        "f" => Ok(Arg::Register(RegLabel::F)),
-                        "m" => Ok(Arg::Register(RegLabel::M)),
-                        _ => Ok(Arg::Register(RegLabel::H(str.to_owned()))),
+                        "x" => Ok(Arg::RegLabel(RegLabel::X)),
+                        "t" => Ok(Arg::RegLabel(RegLabel::T)),
+                        "f" => Ok(Arg::RegLabel(RegLabel::F)),
+                        "m" => Ok(Arg::RegLabel(RegLabel::M)),
+                        _ => Ok(Arg::RegLabel(RegLabel::H(str.to_owned()))),
                     }
                 } else {
                     Err(CompilerError::ArgTypeMismatch(
@@ -294,7 +294,7 @@ impl Compiler {
                     ))
                 }
             }
-            ArgType::Label => Ok(Arg::Label(str.to_owned())),
+            ArgType::Label => Ok(Arg::JumpLabel(str.to_owned())),
         }
     }
 }

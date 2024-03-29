@@ -2,7 +2,7 @@ use std::net::ToSocketAddrs;
 
 use compiler::Compiler;
 use exa::Exa;
-use exavm::ExaVM;
+use exavm::VM;
 use serde::{Deserialize, Serialize};
 
 use crate::compiler::CompilerConfig;
@@ -14,7 +14,7 @@ pub mod linker;
 
 pub struct Host {
     host_name: String,
-    exa_vm: ExaVM,
+    exa_vm: VM,
     exa_compiler: Compiler,
 }
 
@@ -24,7 +24,7 @@ impl Host {
         let exa_compiler = Compiler::with_config(CompilerConfig::extended());
         Host {
             host_name: host_name.to_string(),
-            exa_vm: ExaVM::new(),
+            exa_vm: VM::new(),
             exa_compiler,
         }
     }
@@ -39,7 +39,7 @@ impl Host {
     }
 
     pub fn step(&mut self) {
-        self.exa_vm.step();
+        self.exa_vm.exec_all();
     }
 
     pub fn connect(&mut self, address: &(impl ToSocketAddrs + ?Sized)) {

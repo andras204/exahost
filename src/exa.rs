@@ -44,6 +44,7 @@ pub enum VMRequest {
     Rx,
     Halt,
     Kill,
+    Host,
     Link(i16),
     Repl(Box<Exa>),
 }
@@ -51,11 +52,11 @@ pub enum VMRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Exa {
     pub name: String,
-    instr_list: Vec<(Instruction, Option<Vec<Arg>>)>,
-    instr_ptr: u8,
-    repl_counter: usize,
-    reg_x: Register,
-    reg_t: Register,
+    pub instr_list: Vec<(Instruction, Option<Vec<Arg>>)>,
+    pub instr_ptr: u8,
+    pub repl_counter: usize,
+    pub reg_x: Register,
+    pub reg_t: Register,
     pub reg_m: Option<Register>,
 }
 
@@ -84,12 +85,78 @@ pub enum Instruction {
     Kill,
 
     Rand,
+    Host,
 
     Noop,
     Prnt,
 }
 
 impl Exa {
+    pub fn exec(&mut self) -> Result<(), ExaResult> {
+        if self.instr_ptr as usize == self.instr_list.len() {
+            return Err(ExaResult::Error(Error::OutOfInstructions));
+        }
+        let instruction = self.instr_list[self.instr_ptr as usize].clone();
+        if instruction.0 == Instruction::Mark {
+            self.instr_ptr += 1;
+            return self.exec();
+        }
+        match self.execute_instruction(instruction) {
+            Ok(s) => {
+                self.instr_ptr += 1;
+                Ok(s)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    fn execute_instruction(
+        &mut self,
+        (instr, args): (Instruction, Option<Vec<Arg>>),
+    ) -> Result<(), ExaResult> {
+        let args = match args {
+            Some(a) => a,
+            None => Vec::with_capacity(0),
+        };
+        match instr {
+            // I/O
+            Instruction::Copy => self.copy(args),
+            // math
+            Instruction::Addi => self.addi(args),
+            Instruction::Subi => self.subi(args),
+            Instruction::Muli => self.muli(args),
+            Instruction::Divi => self.divi(args),
+            Instruction::Modi => self.modi(args),
+            Instruction::Swiz => self.swiz(args),
+            // test
+            Instruction::Test => self.test(args),
+            // jumps
+            Instruction::Jump => self.jump(args),
+            Instruction::Tjmp => self.tjmp(args),
+            Instruction::Fjmp => self.fjmp(args),
+            // lifecycle
+            Instruction::Link => self.link(args),
+            Instruction::Repl => self.repl(args),
+            Instruction::Halt => Self::halt(),
+            Instruction::Kill => Self::kill(),
+            // misc
+            Instruction::Rand => self.rand(args),
+            Instruction::Host => Self::host(),
+
+            Instruction::Prnt => self.print(args),
+            Instruction::Noop => Self::noop(),
+
+            // pseudo-instructions [DO NOT EXECUTE]
+            Instruction::Mark => panic!("tried to execute Mark"),
+        }
+    }
+
+    pub fn complete_request() {}
+
+    fn host() -> Result<(), ExaResult> {
+        Err(ExaResult::VMRequest(VMRequest::Host))
+    }
+
     fn link(&mut self, args: Vec<Arg>) -> Result<(), ExaResult> {
         let l = self.get_number(&args[0])?;
         Err(ExaResult::VMRequest(VMRequest::Link(l)))
@@ -244,7 +311,7 @@ impl Exa {
             Register::Number(n) => Register::Number(n.clamp(-9999, 9999)),
             Register::Keyword(w) => Register::Keyword(w),
         };
-        match target.register().unwrap() {
+        match target.reg_label().unwrap() {
             RegLabel::X => {
                 self.reg_x = value;
                 Ok(())
@@ -264,10 +331,10 @@ impl Exa {
 
     fn get_value(&mut self, target: &Arg) -> Result<Register, ExaResult> {
         match target {
-            Arg::Register(_) => (),
+            Arg::RegLabel(_) => (),
             _ => return Ok(Register::from_arg(target).unwrap()),
         }
-        match target.register().unwrap() {
+        match target.reg_label().unwrap() {
             RegLabel::X => Ok(self.reg_x.clone()),
             RegLabel::T => Ok(self.reg_t.clone()),
             RegLabel::F => Err(ExaResult::Error(Error::InvalidFileAccess)),
@@ -281,7 +348,7 @@ impl Exa {
 
     fn get_number(&mut self, arg: &Arg) -> Result<i16, ExaResult> {
         match arg {
-            Arg::Register(_) => {
+            Arg::RegLabel(_) => {
                 let result = self.get_value(arg)?;
                 match result {
                     Register::Number(n) => Ok(n),
@@ -309,78 +376,21 @@ impl Exa {
         self.instr_ptr += 1;
         Some(self.reg_m.take().unwrap())
     }
-
-    pub fn exec(&mut self) -> Result<(), ExaResult> {
-        if self.instr_ptr as usize == self.instr_list.len() {
-            return Err(ExaResult::Error(Error::OutOfInstructions));
-        }
-        let instruction = self.instr_list[self.instr_ptr as usize].clone();
-        if instruction.0 == Instruction::Mark {
-            self.instr_ptr += 1;
-            return self.exec();
-        }
-        match self.execute_instruction(instruction) {
-            Ok(s) => {
-                self.instr_ptr += 1;
-                Ok(s)
-            }
-            Err(e) => Err(e),
-        }
-    }
-
-    fn execute_instruction(
-        &mut self,
-        (instr, args): (Instruction, Option<Vec<Arg>>),
-    ) -> Result<(), ExaResult> {
-        let args = match args {
-            Some(a) => a,
-            None => Vec::with_capacity(0),
-        };
-        match instr {
-            // I/O
-            Instruction::Copy => self.copy(args),
-            // math
-            Instruction::Addi => self.addi(args),
-            Instruction::Subi => self.subi(args),
-            Instruction::Muli => self.muli(args),
-            Instruction::Divi => self.divi(args),
-            Instruction::Modi => self.modi(args),
-            Instruction::Swiz => self.swiz(args),
-            // test
-            Instruction::Test => self.test(args),
-            // jumps
-            Instruction::Jump => self.jump(args),
-            Instruction::Tjmp => self.tjmp(args),
-            Instruction::Fjmp => self.fjmp(args),
-            // lifecycle
-            Instruction::Link => self.link(args),
-            Instruction::Repl => self.repl(args),
-            Instruction::Halt => Self::halt(),
-            Instruction::Kill => Self::kill(),
-            // misc
-            Instruction::Rand => self.rand(args),
-            Instruction::Prnt => self.print(args),
-            Instruction::Noop => Self::noop(),
-
-            // pseudo-instructions [DO NOT EXECUTE]
-            Instruction::Mark => panic!("tried to execute Mark"),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Arg {
-    Register(RegLabel),
+    RegLabel(RegLabel),
     Number(i16),
     Comp(Comp),
     Keyword(String),
-    Label(String),
+    JumpLabel(String),
 }
 
 impl Arg {
-    pub fn register(&self) -> Result<RegLabel, &str> {
+    pub fn reg_label(&self) -> Result<RegLabel, &str> {
         match self {
-            Self::Register(r) => Ok(r.clone()),
+            Self::RegLabel(r) => Ok(r.clone()),
             _ => Err("arg is not register label"),
         }
     }
@@ -399,20 +409,20 @@ impl Arg {
         }
     }
 
-    pub fn label(&self) -> Result<String, &str> {
+    pub fn jump_label(&self) -> Result<String, &str> {
         match self {
-            Self::Label(l) => Ok(l.to_string()),
+            Self::JumpLabel(l) => Ok(l.to_string()),
             _ => Err("arg is not label"),
         }
     }
 
     pub fn reg_t() -> Self {
-        Arg::Register(RegLabel::T)
+        Arg::RegLabel(RegLabel::T)
     }
 
     pub fn is_reg_m(&self) -> bool {
         match self {
-            Arg::Register(r) => matches!(r, RegLabel::M),
+            Arg::RegLabel(r) => matches!(r, RegLabel::M),
             _ => false,
         }
     }

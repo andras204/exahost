@@ -1,8 +1,4 @@
-use std::net::TcpStream;
-use std::thread;
-use std::time::Duration;
-
-use exahost::linker::{LinkManager, Message};
+use exahost::exavm::VM;
 use exahost::Host;
 
 fn main() {
@@ -18,14 +14,15 @@ fn main() {
         .compile_exa(
             "XA",
             vec![
-                "prnt 'Fibonacci'",
-                "copy 1 t",
-                "mark fib",
-                "prnt x",
-                "addi x t t",
-                "prnt t",
-                "addi x t x",
-                "jump fib",
+                // "prnt 'Fibonacci'",
+                "copy 1 t", "copy 2 x",
+                "copy x t",
+                // "mark fib",
+                // "prnt x",
+                // "addi x t t",
+                // "prnt t",
+                // "addi x t x",
+                // "jump fib",
             ]
             .into_iter()
             .map(|s| s.to_string())
@@ -33,7 +30,16 @@ fn main() {
         )
         .unwrap();
 
-    let bin = bincode::serialize(&xa).unwrap();
+    let mut vm = VM::new();
+
+    vm.add_exa(xa);
+
+    vm.exec_all();
+    println!("{:?}", vm);
+    vm.exec_all();
+    println!("{:?}", vm);
+    vm.exec_all();
+    println!("{:?}", vm);
 
     // let mut stream = TcpStream::connect("localhost:9800").unwrap();
     // println!("dropping connection");
@@ -41,11 +47,5 @@ fn main() {
 
     // asd.join().unwrap();
 
-    rhizome.add_exa(bincode::deserialize(&bin).unwrap());
-
     // thread::sleep(Duration::from_millis(1000));
-
-    for _ in 0..50 {
-        rhizome.step();
-    }
 }
