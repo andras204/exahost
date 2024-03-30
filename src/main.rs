@@ -14,15 +14,14 @@ fn main() {
         .compile_exa(
             "XA",
             vec![
-                // "prnt 'Fibonacci'",
-                "copy 1 t", "copy 2 x",
-                "copy x t",
-                // "mark fib",
-                // "prnt x",
-                // "addi x t t",
-                // "prnt t",
-                // "addi x t x",
-                // "jump fib",
+                "prnt 'Fibonacci'",
+                "copy 1 t",
+                "mark fib",
+                "prnt x",
+                "addi x t t",
+                "prnt t",
+                "addi x t x",
+                "jump fib",
             ]
             .into_iter()
             .map(|s| s.to_string())
@@ -34,12 +33,9 @@ fn main() {
 
     vm.add_exa(xa);
 
-    vm.exec_all();
-    println!("{:?}", vm);
-    vm.exec_all();
-    println!("{:?}", vm);
-    vm.exec_all();
-    println!("{:?}", vm);
+    for _ in 0..50 {
+        vm.step();
+    }
 
     // let mut stream = TcpStream::connect("localhost:9800").unwrap();
     // println!("dropping connection");

@@ -39,7 +39,7 @@ impl Host {
     }
 
     pub fn step(&mut self) {
-        self.exa_vm.exec_all();
+        self.exa_vm.step();
     }
 
     pub fn connect(&mut self, address: &(impl ToSocketAddrs + ?Sized)) {
