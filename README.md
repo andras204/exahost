@@ -9,10 +9,11 @@ The project is currently still work in progress, and very much incomplete.
   - [ ] Registers
     - [x] X
     - [x] T
-	- [ ] F
+	- [x] F
 	- [ ] M
       - [x] local
       - [ ] global
+	- [ ] Hardware
   - [ ] Base Instructions
 	- [x] copy
 	- [x] addi
@@ -25,26 +26,26 @@ The project is currently still work in progress, and very much incomplete.
 	- [x] jump
 	- [x] tjmp
 	- [x] fjmp
-	- [ ] test
+	- [x] test
       - [x] numbers
       - [x] keywords
-      - [ ] EOF
-      - [ ] MRD
+      - [x] EOF
+      - [x] MRD
     - [x] repl
     - [x] halt
     - [x] kill
     - [x] link
-    - [ ] host
+    - [x] host
     - [ ] mode
-    - [ ] void
-      - [ ] M
-      - [ ] F
-    - [ ] make
-    - [ ] grab
-    - [ ] file
-    - [ ] seek
-    - [ ] drop
-    - [ ] wipe
+    - [x] void
+      - [x] M
+      - [x] F
+    - [x] make
+    - [x] grab
+    - [x] file
+    - [x] seek
+    - [x] drop
+    - [x] wipe
     - [x] note
     - [x] noop
     - [x] rand
