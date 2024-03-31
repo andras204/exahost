@@ -1,4 +1,5 @@
 use exahost::exavm::VM;
+use exahost::file::File;
 use exahost::Host;
 
 fn main() {
@@ -14,14 +15,24 @@ fn main() {
         .compile_exa(
             "XA",
             vec![
-                "prnt 'Fibonacci'",
-                "copy 1 t",
-                "mark fib",
+                // "prnt 'Fibonacci'",
+                // "copy 1 t",
+                // "mark fib",
+                // "prnt x",
+                // "addi x t t",
+                // "prnt t",
+                // "addi x t x",
+                // "jump fib",
+                "grab 0",
+                "mark asd",
+                "copy f x",
                 "prnt x",
-                "addi x t t",
-                "prnt t",
-                "addi x t x",
-                "jump fib",
+                "test EOF",
+                "fjmp asd",
+                "prnt 'finished reading'",
+                "copy 'glorb' f",
+                "seek -1",
+                "prnt f",
             ]
             .into_iter()
             .map(|s| s.to_string())
@@ -30,6 +41,10 @@ fn main() {
         .unwrap();
 
     let mut vm = VM::new();
+
+    let f = File::from(vec!["asd", "123", "fgh", "456"]);
+
+    vm.add_file(f);
 
     vm.add_exa(xa);
 

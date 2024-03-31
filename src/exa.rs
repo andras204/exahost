@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, fmt::Display};
 use strum::{Display, EnumString};
 
+use crate::file::File;
+
 pub type InstrTuple = (Instruction, Option<Arg>, Option<Arg>, Option<Arg>);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -12,13 +14,14 @@ pub struct Exa {
     pub repl_counter: usize,
     pub reg_x: Register,
     pub reg_t: Register,
-    pub reg_m: Option<Register>,
+    pub reg_f: Option<(i16, File)>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, EnumString, Display)]
 #[strum(serialize_all = "lowercase")]
 pub enum Instruction {
     Copy,
+    Void,
 
     Addi,
     Subi,
@@ -28,11 +31,20 @@ pub enum Instruction {
     Swiz,
 
     Test,
+    TestMrd,
+    TestEof,
 
     Mark,
     Jump,
     Fjmp,
     Tjmp,
+
+    Make,
+    Grab,
+    File,
+    Seek,
+    Drop,
+    Wipe,
 
     Link,
     Repl,
@@ -55,7 +67,7 @@ impl Exa {
             repl_counter: 0,
             reg_x: Register::Number(0),
             reg_t: Register::Number(0),
-            reg_m: None,
+            reg_f: None,
         }
     }
 }

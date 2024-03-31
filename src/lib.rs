@@ -10,6 +10,7 @@ use crate::compiler::CompilerConfig;
 pub mod compiler;
 pub mod exa;
 pub mod exavm;
+pub mod file;
 pub mod linker;
 
 pub struct Host {

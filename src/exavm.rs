@@ -7,30 +7,46 @@ use std::{
 use rand::{rngs::ThreadRng, Rng};
 
 use crate::exa::{Arg, Comp, Exa, Instruction, RegLabel, Register};
+use crate::file::File;
 
+#[derive(Debug, Clone, Copy)]
 enum ExaResult {
     SideEffect(SideEffect),
+    Interrupt(Interrupt),
     Error(RuntimeError),
 }
 
+impl ExaResult {
+    pub fn is_interrupt(&self) -> bool {
+        matches!(self, Self::Interrupt(_))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 enum SideEffect {
-    Halt,
-    Kill,
-    Send,
-    Recv,
     Repl(u8),
     Link(i16),
-    Error(RuntimeError),
+    Kill,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum Interrupt {
+    Send,
+    Recv,
+    Halt,
+}
+
+#[derive(Debug, Clone, Copy)]
 enum RuntimeError {
     OutOfInstructions,
     UnsupportedInstruction,
     InvalidFileAccess,
     InvalidHWRegAccess,
+    InvalidFRegAccess,
     InvalidArgument,
     MathWithKeywords,
     LabelNotFound,
+    AlreadyHoldingFile,
 }
 
 #[derive(Debug)]
@@ -41,6 +57,8 @@ pub struct VM {
 
     reg_m: RefCell<Option<Register>>,
     rng: RefCell<ThreadRng>,
+
+    files: RefCell<HashMap<i16, File>>,
 }
 
 impl VM {
@@ -51,13 +69,13 @@ impl VM {
             recv: HashSet::new(),
             reg_m: RefCell::new(None),
             rng: RefCell::new(rand::thread_rng()),
+            files: RefCell::new(HashMap::new()),
         }
     }
 
     pub fn step(&mut self) {
-        let side_effects = self.exec_all();
-        self.apply_side_effects(side_effects);
-        // self.handle_reg_m();
+        let results = self.exec_all();
+        self.apply_side_effects(results);
     }
 
     pub fn add_exa(&mut self, exa: Exa) {
@@ -70,63 +88,68 @@ impl VM {
         );
     }
 
-    fn exec_all(&mut self) -> Vec<(usize, SideEffect)> {
-        let mut side_effects = Vec::with_capacity(self.exas.len());
+    pub fn add_file(&mut self, f: File) {
+        let max = {
+            match self.files.borrow().keys().max() {
+                Some(n) => n + 1,
+                None => 0,
+            }
+        };
+        let mut files = self.files.borrow_mut();
+        files.insert(max, f);
+    }
+
+    fn exec_all(&mut self) -> Vec<(usize, ExaResult)> {
+        let mut results = Vec::with_capacity(self.exas.len());
         for (i, exa) in self
             .exas
             .iter()
             .filter(|(k, _)| !(self.recv.contains(k) || self.send.contains(k)))
         {
             if let Err(res) = self.exec(exa.clone()) {
-                match res {
-                    ExaResult::SideEffect(se) => {
-                        side_effects.push((*i, se));
-                    }
-                    ExaResult::Error(e) => {
-                        side_effects.push((*i, SideEffect::Error(e)));
-                    }
-                }
+                results.push((*i, res));
             }
         }
-        side_effects
+        results
     }
 
-    fn apply_side_effects(&mut self, side_effects: Vec<(usize, SideEffect)>) {
-        for (k, effect) in side_effects {
-            match effect {
-                SideEffect::Recv => {
-                    self.recv.insert(k);
-                }
-                SideEffect::Send => {
-                    self.send.insert(k);
-                }
-                SideEffect::Repl(j) => {
-                    let (key, val) = self.add_clone(&k, j);
-                    self.exas.insert(key, val);
-                }
-                SideEffect::Halt | SideEffect::Error(_) => {
-                    self.exas.remove(&k);
-                }
-                SideEffect::Link(_) => {
-                    self.exas.remove(&k);
-                }
-                SideEffect::Kill => {
-                    for k2 in self.exas.keys() {
-                        if k2 != &k {
-                            self.exas.remove(&k);
-                            break;
+    fn apply_side_effects(&mut self, results: Vec<(usize, ExaResult)>) {
+        for (k, res) in results {
+            match res {
+                ExaResult::SideEffect(se) => match se {
+                    SideEffect::Repl(j) => {
+                        let (key, val) = self.add_clone(&k, j);
+                        self.exas.insert(key, val);
+                    }
+                    SideEffect::Kill => {
+                        for k2 in self.exas.keys() {
+                            if k2 != &k {
+                                self.exas.remove(&k);
+                                break;
+                            }
                         }
                     }
+                    SideEffect::Link(_) => {
+                        self.exas.remove(&k);
+                    }
+                },
+                ExaResult::Interrupt(it) => match it {
+                    Interrupt::Recv => {
+                        self.recv.insert(k);
+                    }
+                    Interrupt::Send => {
+                        self.send.insert(k);
+                    }
+                    Interrupt::Halt => {
+                        self.exas.remove(&k);
+                    }
+                },
+                ExaResult::Error(_) => {
+                    self.exas.remove(&k);
                 }
             }
         }
     }
-
-    // fn handle_reg_m(&mut self) {
-    //     if self.send.is_empty() || self.recv.is_empty() {
-    //         return;
-    //     }
-    // }
 
     fn add_clone(&mut self, k: &usize, j: u8) -> (usize, Rc<RefCell<Exa>>) {
         let mut clone = self.exas.get(k).unwrap().borrow().clone();
@@ -156,8 +179,9 @@ impl VM {
             return self.exec(exa);
         }
 
-        match instr {
+        let res = match instr {
             Instruction::Copy => self.copy(&exa, arg1.unwrap(), arg2.unwrap()),
+            Instruction::Void => self.void(&exa, arg1.unwrap()),
 
             Instruction::Addi => self.addi(&exa, arg1.unwrap(), arg2.unwrap(), arg3.unwrap()),
             Instruction::Subi => self.subi(&exa, arg1.unwrap(), arg2.unwrap(), arg3.unwrap()),
@@ -168,16 +192,25 @@ impl VM {
             Instruction::Rand => self.rand(&exa, arg1.unwrap(), arg2.unwrap(), arg3.unwrap()),
 
             Instruction::Test => self.test(&exa, arg1.unwrap(), arg2.unwrap(), arg3.unwrap()),
+            Instruction::TestMrd => self.test_mrd(&exa),
+            Instruction::TestEof => Self::test_eof(&exa),
 
-            Instruction::Jump => self.jump(&exa, arg1.unwrap()),
-            Instruction::Tjmp => self.tjmp(&exa, arg1.unwrap()),
-            Instruction::Fjmp => self.fjmp(&exa, arg1.unwrap()),
+            Instruction::Jump => Self::jump(&exa, arg1.unwrap()),
+            Instruction::Tjmp => Self::tjmp(&exa, arg1.unwrap()),
+            Instruction::Fjmp => Self::fjmp(&exa, arg1.unwrap()),
+
+            Instruction::Make => self.make(&exa),
+            Instruction::Grab => self.grab(&exa, arg1.unwrap()),
+            Instruction::File => self.file(&exa, arg1.unwrap()),
+            Instruction::Seek => Self::seek(&exa, arg1.unwrap()),
+            Instruction::Drop => self.drop(&exa),
+            Instruction::Wipe => Self::wipe(&exa),
 
             Instruction::Link => Err(ExaResult::SideEffect(SideEffect::Link(
                 arg1.unwrap().number().unwrap(),
             ))),
-            Instruction::Repl => self.repl(&exa, arg1.unwrap()),
-            Instruction::Halt => Err(ExaResult::SideEffect(SideEffect::Halt)),
+            Instruction::Repl => Self::repl(&exa, arg1.unwrap()),
+            Instruction::Halt => Err(ExaResult::Interrupt(Interrupt::Halt)),
             Instruction::Kill => Err(ExaResult::SideEffect(SideEffect::Kill)),
 
             Instruction::Host => self.host(&exa, arg1.unwrap()),
@@ -186,13 +219,34 @@ impl VM {
             Instruction::Mark => Err(ExaResult::Error(RuntimeError::UnsupportedInstruction)),
 
             Instruction::Prnt => self.prnt(&exa, arg1.unwrap()),
+        };
+
+        if let Err(e) = res {
+            if e.is_interrupt() {
+                return Err(e);
+            }
         }
+        exa.borrow_mut().instr_ptr += 1;
+        res
     }
 
     fn copy(&self, exa: &Rc<RefCell<Exa>>, value: Arg, target: Arg) -> Result<(), ExaResult> {
         let val = self.get_value(exa, value)?;
         self.put_value(exa, val, target.reg_label().unwrap())?;
-        Self::inc_ptr(exa);
+        Ok(())
+    }
+
+    fn void(&self, exa: &Rc<RefCell<Exa>>, target: Arg) -> Result<(), ExaResult> {
+        match target.reg_label().unwrap() {
+            RegLabel::X => exa.borrow_mut().reg_x = Register::Number(0),
+            RegLabel::T => exa.borrow_mut().reg_t = Register::Number(0),
+            RegLabel::F => self.put_value(exa, Register::Keyword("".to_string()), RegLabel::F)?,
+            RegLabel::M => match self.reg_m.borrow_mut().take() {
+                Some(_) => return Ok(()),
+                None => return Err(ExaResult::Interrupt(Interrupt::Recv)),
+            },
+            RegLabel::H(_) => return Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
+        }
         Ok(())
     }
 
@@ -210,7 +264,6 @@ impl VM {
             Register::Number(num1 + num2),
             target.reg_label().unwrap(),
         )?;
-        Self::inc_ptr(exa);
         Ok(())
     }
 
@@ -228,7 +281,6 @@ impl VM {
             Register::Number(num1 - num2),
             target.reg_label().unwrap(),
         )?;
-        Self::inc_ptr(exa);
         Ok(())
     }
 
@@ -246,7 +298,6 @@ impl VM {
             Register::Number(num1 * num2),
             target.reg_label().unwrap(),
         )?;
-        Self::inc_ptr(exa);
         Ok(())
     }
 
@@ -264,7 +315,6 @@ impl VM {
             Register::Number(num1 / num2),
             target.reg_label().unwrap(),
         )?;
-        Self::inc_ptr(exa);
         Ok(())
     }
 
@@ -282,7 +332,6 @@ impl VM {
             Register::Number(num1 % num2),
             target.reg_label().unwrap(),
         )?;
-        Self::inc_ptr(exa);
         Ok(())
     }
 
@@ -308,7 +357,6 @@ impl VM {
         }
         result *= num1.signum() * num2.signum();
         self.put_value(exa, Register::Number(result), target.reg_label().unwrap())?;
-        Self::inc_ptr(exa);
         Ok(())
     }
 
@@ -335,7 +383,6 @@ impl VM {
                 target.reg_label().unwrap(),
             )?;
         }
-        Self::inc_ptr(exa);
         Ok(())
     }
 
@@ -357,27 +404,42 @@ impl VM {
             Comp::Ne => v1 != v2,
         };
         exa.borrow_mut().reg_t = Register::Number(eval as i16);
-        Self::inc_ptr(exa);
         Ok(())
     }
 
-    fn tjmp(&self, exa: &Rc<RefCell<Exa>>, target: Arg) -> Result<(), ExaResult> {
+    fn test_eof(exa: &Rc<RefCell<Exa>>) -> Result<(), ExaResult> {
+        let eof = match exa.borrow().reg_f.as_ref() {
+            Some(f) => f.1.is_eof(),
+            None => return Err(ExaResult::Error(RuntimeError::InvalidFRegAccess)),
+        } as i16;
+        {
+            exa.borrow_mut().reg_t = Register::Number(eof);
+        }
+        Ok(())
+    }
+
+    fn test_mrd(&self, exa: &Rc<RefCell<Exa>>) -> Result<(), ExaResult> {
+        {
+            exa.borrow_mut().reg_t = Register::Number(self.reg_m.borrow().is_some() as i16);
+        }
+        Ok(())
+    }
+
+    fn tjmp(exa: &Rc<RefCell<Exa>>, target: Arg) -> Result<(), ExaResult> {
         if exa.borrow().reg_t == Register::Number(0) {
-            Self::inc_ptr(exa);
             return Ok(());
         }
-        self.jump(exa, target)
+        Self::jump(exa, target)
     }
 
-    fn fjmp(&self, exa: &Rc<RefCell<Exa>>, target: Arg) -> Result<(), ExaResult> {
+    fn fjmp(exa: &Rc<RefCell<Exa>>, target: Arg) -> Result<(), ExaResult> {
         if exa.borrow().reg_t != Register::Number(0) {
-            Self::inc_ptr(exa);
             return Ok(());
         }
-        self.jump(exa, target)
+        Self::jump(exa, target)
     }
 
-    fn jump(&self, exa: &Rc<RefCell<Exa>>, target: Arg) -> Result<(), ExaResult> {
+    fn jump(exa: &Rc<RefCell<Exa>>, target: Arg) -> Result<(), ExaResult> {
         let mut x = 0;
         let instr_list = { exa.borrow().instr_list.clone() };
         for instr in instr_list.iter() {
@@ -387,19 +449,80 @@ impl VM {
             }
             if instr.1.as_ref().unwrap() == &target {
                 exa.borrow_mut().instr_ptr = x;
-                Self::inc_ptr(exa);
                 return Ok(());
             }
         }
         Err(ExaResult::Error(RuntimeError::LabelNotFound))
     }
 
-    fn repl(&self, exa: &Rc<RefCell<Exa>>, target: Arg) -> Result<(), ExaResult> {
+    fn make(&self, exa: &Rc<RefCell<Exa>>) -> Result<(), ExaResult> {
+        if exa.borrow().reg_f.is_some() {
+            return Err(ExaResult::Error(RuntimeError::AlreadyHoldingFile));
+        }
+        exa.borrow_mut().reg_f = Some((
+            self.files
+                .borrow()
+                .keys()
+                .max()
+                .unwrap_or(&300i16)
+                .to_owned(),
+            File::new(),
+        ));
+        Ok(())
+    }
+
+    fn grab(&self, exa: &Rc<RefCell<Exa>>, target: Arg) -> Result<(), ExaResult> {
+        match self
+            .files
+            .borrow_mut()
+            .remove_entry(&target.number().unwrap())
+        {
+            Some(t) => {
+                exa.borrow_mut().reg_f = Some(t);
+                Ok(())
+            }
+            None => Err(ExaResult::Error(RuntimeError::InvalidFileAccess)),
+        }
+    }
+
+    fn file(&self, exa: &Rc<RefCell<Exa>>, arg1: Arg) -> Result<(), ExaResult> {
+        let f = match exa.borrow().reg_f.as_ref() {
+            Some(f) => Ok(f.0),
+            None => Err(ExaResult::Error(RuntimeError::InvalidFRegAccess)),
+        }?;
+        self.put_value(exa, Register::Number(f), arg1.reg_label().unwrap())
+    }
+
+    fn seek(exa: &Rc<RefCell<Exa>>, arg1: Arg) -> Result<(), ExaResult> {
+        match exa.borrow_mut().reg_f.as_mut() {
+            Some(f) => {
+                f.1.seek(arg1.number().unwrap());
+                Ok(())
+            }
+            None => Err(ExaResult::Error(RuntimeError::InvalidFRegAccess)),
+        }
+    }
+
+    fn drop(&self, exa: &Rc<RefCell<Exa>>) -> Result<(), ExaResult> {
+        if let Some(f) = exa.borrow_mut().reg_f.take() {
+            self.files.borrow_mut().insert(f.0, f.1);
+            return Ok(());
+        }
+        Err(ExaResult::Error(RuntimeError::InvalidFileAccess))
+    }
+
+    fn wipe(exa: &Rc<RefCell<Exa>>) -> Result<(), ExaResult> {
+        if exa.borrow_mut().reg_f.take().is_some() {
+            return Ok(());
+        }
+        Err(ExaResult::Error(RuntimeError::InvalidFileAccess))
+    }
+
+    fn repl(exa: &Rc<RefCell<Exa>>, target: Arg) -> Result<(), ExaResult> {
         let ptr = { exa.borrow().instr_ptr };
-        self.jump(exa, target)?;
+        Self::jump(exa, target)?;
         let traget_ptr = { exa.borrow().instr_ptr };
         exa.borrow_mut().instr_ptr = ptr;
-        Self::inc_ptr(exa);
         Err(ExaResult::SideEffect(SideEffect::Repl(traget_ptr)))
     }
 
@@ -410,13 +533,12 @@ impl VM {
             Register::Keyword("Rhizome".to_string()),
             target.reg_label().unwrap(),
         )?;
-        Self::inc_ptr(exa);
         Ok(())
     }
 
     fn prnt(&self, exa: &Rc<RefCell<Exa>>, target: Arg) -> Result<(), ExaResult> {
-        println!("{}> {}", exa.borrow().name, self.get_value(exa, target)?);
-        Self::inc_ptr(exa);
+        let name = { exa.borrow().name.clone() };
+        println!("{}> {}", name, self.get_value(exa, target)?);
         Ok(())
     }
 
@@ -434,10 +556,16 @@ impl VM {
             Arg::RegLabel(r) => match r {
                 RegLabel::X => Ok(exa.borrow().reg_x.clone()),
                 RegLabel::T => Ok(exa.borrow().reg_t.clone()),
-                RegLabel::F => Err(ExaResult::Error(RuntimeError::InvalidFileAccess)),
+                RegLabel::F => {
+                    if let Some(f_ref) = exa.borrow_mut().reg_f.as_mut() {
+                        Ok(f_ref.1.read().unwrap())
+                    } else {
+                        Err(ExaResult::Error(RuntimeError::InvalidFRegAccess))
+                    }
+                }
                 RegLabel::M => match self.reg_m.borrow_mut().take() {
                     Some(r) => Ok(r),
-                    None => Err(ExaResult::SideEffect(SideEffect::Recv)),
+                    None => Err(ExaResult::Interrupt(Interrupt::Recv)),
                 },
                 RegLabel::H(_) => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
             },
@@ -460,11 +588,18 @@ impl VM {
                 exa.borrow_mut().reg_t = value;
                 Ok(())
             }
-            RegLabel::F => Err(ExaResult::Error(RuntimeError::InvalidFileAccess)),
+            RegLabel::F => {
+                if let Some(f_ref) = exa.borrow_mut().reg_f.as_mut() {
+                    f_ref.1.write(value);
+                    Ok(())
+                } else {
+                    Err(ExaResult::Error(RuntimeError::InvalidFRegAccess))
+                }
+            }
             RegLabel::M => {
                 let mut reg_m = self.reg_m.borrow_mut();
                 if reg_m.is_some() {
-                    Err(ExaResult::SideEffect(SideEffect::Send))
+                    Err(ExaResult::Interrupt(Interrupt::Send))
                 } else {
                     *reg_m = Some(value);
                     Ok(())
@@ -472,10 +607,6 @@ impl VM {
             }
             RegLabel::H(_) => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
         }
-    }
-
-    fn inc_ptr(exa: &Rc<RefCell<Exa>>) {
-        exa.borrow_mut().instr_ptr += 1;
     }
 }
 

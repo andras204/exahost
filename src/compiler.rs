@@ -187,6 +187,14 @@ impl Compiler {
             return Ok((instr, None, None, None));
         }
 
+        if instr == Instruction::Test && split_line.len() == 2 {
+            match &split_line[1].to_lowercase()[..] {
+                "mrd" => return Ok((Instruction::TestMrd, None, None, None)),
+                "eof" => return Ok((Instruction::TestEof, None, None, None)),
+                _ => (),
+            }
+        }
+
         let signature = self.get_signature(&instr)?;
 
         let arg_slice = &split_line[1..];
@@ -391,6 +399,7 @@ impl CompilerConfig {
 
         let mut sigs: HashMap<Instruction, Vec<Vec<ArgType>>> = HashMap::from_iter([
             (Instruction::Copy, vec![vari.clone(), r.clone()]),
+            (Instruction::Void, vec![r.clone()]),
             (Instruction::Addi, vec![rn.clone(), rn.clone(), r.clone()]),
             (Instruction::Subi, vec![rn.clone(), rn.clone(), r.clone()]),
             (Instruction::Muli, vec![rn.clone(), rn.clone(), r.clone()]),
@@ -402,12 +411,21 @@ impl CompilerConfig {
                 Instruction::Test,
                 vec![vari.clone(), c.clone(), vari.clone()],
             ),
-            (Instruction::Mark, vec![l.clone()]),
+            (Instruction::TestEof, vec![]),
+            (Instruction::TestMrd, vec![]),
             (Instruction::Jump, vec![l.clone()]),
             (Instruction::Fjmp, vec![l.clone()]),
             (Instruction::Tjmp, vec![l.clone()]),
+            (Instruction::Make, vec![]),
+            (Instruction::Grab, vec![rn.clone()]),
+            (Instruction::File, vec![r.clone()]),
+            (Instruction::Seek, vec![rn.clone()]),
+            (Instruction::Mark, vec![l.clone()]),
+            (Instruction::Drop, vec![]),
+            (Instruction::Wipe, vec![]),
             (Instruction::Repl, vec![l.clone()]),
             (Instruction::Link, vec![rn.clone()]),
+            (Instruction::Host, vec![r.clone()]),
             (Instruction::Noop, vec![]),
             (Instruction::Halt, vec![]),
             (Instruction::Kill, vec![]),
