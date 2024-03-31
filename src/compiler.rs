@@ -25,6 +25,9 @@ pub enum CompilerError {
     NumberOutOfBounds,
     SignatureMismatch(Instruction, u8, u8),
     InvalidComparison(String),
+    NestedMacros,
+    NoEndTag,
+    InvalidMacroSyntax,
 }
 
 impl Display for CompilerError {
@@ -41,6 +44,9 @@ impl Display for CompilerError {
                 format!("{:?} requires {} arguments, found {}", i, s, g)
             }
             Self::InvalidComparison(s) => format!("invalid comparison operator '{}'", s),
+            Self::NestedMacros => "macros cannot be nested".to_string(),
+            Self::NoEndTag => "@rep macro missing @end tag".to_string(),
+            Self::InvalidMacroSyntax => "invalid macro syntax".to_string(),
         };
         write!(f, "{}", err_msg)
     }
@@ -83,12 +89,13 @@ impl Compiler {
         }
     }
 
-    pub fn compile(&self, source: Vec<String>) -> Result<Box<[InstrTuple]>, Vec<String>> {
+    pub fn compile(&self, mut source: Vec<String>) -> Result<Box<[InstrTuple]>, Vec<String>> {
         let mut errs: Vec<String> = Vec::new();
         let mut compiled: Vec<InstrTuple> = Vec::with_capacity(source.len());
         if source.is_empty() {
             errs.push("nothing to compile".to_string());
         }
+        Self::expand_macros(&mut source).unwrap();
         for (x, line) in source.iter().enumerate() {
             let split = match self.split_line(line) {
                 Ok(s) => s,
@@ -121,18 +128,96 @@ impl Compiler {
         Ok(compiled.into_boxed_slice())
     }
 
-    fn check_multi_m(args: (&Option<Arg>, &Option<Arg>, &Option<Arg>)) -> bool {
-        let mut m = 0;
-        if args.0.is_some() && args.0.as_ref().unwrap().is_reg_m() {
-            m += 1;
+    fn expand_macros(raw: &mut Vec<String>) -> Result<(), Vec<CompilerError>> {
+        let mut errs = Vec::new();
+        let mut s = 0;
+        let mut stared = false;
+        let mut x = 0;
+        let mut len = raw.len();
+        while x < len {
+            if raw[x].to_lowercase().starts_with("@rep") {
+                if stared {
+                    errs.push(CompilerError::NestedMacros);
+                }
+                s = x;
+                stared = true;
+            }
+            if raw[x].to_lowercase() == "@end" && errs.is_empty() {
+                let sub_slice = raw.drain(s..=x).collect::<Vec<String>>();
+                let expanded = match Self::repeat_macro(sub_slice) {
+                    Ok(m) => m,
+                    Err(mut e) => {
+                        errs.append(&mut e);
+                        continue;
+                    }
+                };
+                raw.splice(s..s, expanded);
+                stared = false;
+                len = raw.len();
+            }
+            x += 1;
         }
-        if args.1.is_some() && args.1.as_ref().unwrap().is_reg_m() {
-            m += 1;
+        if !errs.is_empty() {
+            Err(errs)
+        } else {
+            Ok(())
         }
-        if args.2.is_some() && args.2.as_ref().unwrap().is_reg_m() {
-            m += 1;
+    }
+
+    fn repeat_macro(mut original: Vec<String>) -> Result<Vec<String>, Vec<CompilerError>> {
+        let n = match match original.remove(0).split(' ').nth(1) {
+            Some(s) => s,
+            None => return Err(vec![CompilerError::InvalidMacroSyntax]),
         }
-        m > 1
+        .parse::<usize>()
+        {
+            Ok(n) => n,
+            Err(_) => return Err(vec![CompilerError::InvalidMacroSyntax]),
+        };
+        original.pop();
+        let mut errs = Vec::new();
+        let mut expanded = Vec::with_capacity((original.len() - 2) * n);
+        for x in 0..n {
+            for line in original.iter() {
+                match Self::substitute_macro(line, x) {
+                    Ok(l) => expanded.push(l),
+                    Err(e) => errs.push(e),
+                }
+            }
+        }
+        if !errs.is_empty() {
+            Err(errs)
+        } else {
+            Ok(expanded)
+        }
+    }
+
+    fn substitute_macro(line: &str, n: usize) -> Result<String, CompilerError> {
+        let mut line = line.to_string();
+        while line.contains("@{") {
+            let start = line
+                .chars()
+                .position(|c| c == '{')
+                .ok_or(CompilerError::InvalidMacroSyntax)?
+                - 1;
+            let end = line
+                .chars()
+                .position(|c| c == '}')
+                .ok_or(CompilerError::InvalidMacroSyntax)?;
+
+            let s = line.drain(start..=end).collect::<String>();
+            let split = s.split(',').collect::<Vec<&str>>();
+            let x = split[0]
+                .trim_start_matches("@{")
+                .parse::<i16>()
+                .map_err(|_| CompilerError::InvalidMacroSyntax)?;
+            let y = split[1]
+                .trim_end_matches('}')
+                .parse::<i16>()
+                .map_err(|_| CompilerError::InvalidMacroSyntax)?;
+            line.insert_str(start, &(x + (y * n as i16)).to_string()[..]);
+        }
+        Ok(line)
     }
 
     fn split_line(&self, line: &str) -> Result<Vec<String>, CompilerError> {
@@ -312,6 +397,20 @@ impl Compiler {
             }
             ArgType::Label => Ok(Arg::JumpLabel(str.to_owned())),
         }
+    }
+
+    fn check_multi_m(args: (&Option<Arg>, &Option<Arg>, &Option<Arg>)) -> bool {
+        let mut m = 0;
+        if args.0.is_some() && args.0.as_ref().unwrap().is_reg_m() {
+            m += 1;
+        }
+        if args.1.is_some() && args.1.as_ref().unwrap().is_reg_m() {
+            m += 1;
+        }
+        if args.2.is_some() && args.2.as_ref().unwrap().is_reg_m() {
+            m += 1;
+        }
+        m > 1
     }
 }
 

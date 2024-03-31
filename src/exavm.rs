@@ -52,9 +52,8 @@ enum RuntimeError {
 #[derive(Debug)]
 pub struct VM {
     exas: HashMap<usize, Rc<RefCell<Exa>>>,
-    send: HashSet<usize>,
-    recv: HashSet<usize>,
-
+    // send: HashSet<usize>,
+    // recv: HashSet<usize>,
     reg_m: RefCell<Option<Register>>,
     rng: RefCell<ThreadRng>,
 
@@ -65,8 +64,8 @@ impl VM {
     pub fn new() -> Self {
         Self {
             exas: HashMap::new(),
-            send: HashSet::new(),
-            recv: HashSet::new(),
+            // send: HashSet::new(),
+            // recv: HashSet::new(),
             reg_m: RefCell::new(None),
             rng: RefCell::new(rand::thread_rng()),
             files: RefCell::new(HashMap::new()),
@@ -101,10 +100,8 @@ impl VM {
 
     fn exec_all(&mut self) -> Vec<(usize, ExaResult)> {
         let mut results = Vec::with_capacity(self.exas.len());
-        for (i, exa) in self
-            .exas
-            .iter()
-            .filter(|(k, _)| !(self.recv.contains(k) || self.send.contains(k)))
+        for (i, exa) in self.exas.iter()
+        // .filter(|(k, _)| !(self.recv.contains(k) || self.send.contains(k)))
         {
             if let Err(res) = self.exec(exa.clone()) {
                 results.push((*i, res));
@@ -135,10 +132,10 @@ impl VM {
                 },
                 ExaResult::Interrupt(it) => match it {
                     Interrupt::Recv => {
-                        self.recv.insert(k);
+                        // self.recv.insert(k);
                     }
                     Interrupt::Send => {
-                        self.send.insert(k);
+                        // self.send.insert(k);
                     }
                     Interrupt::Halt => {
                         self.exas.remove(&k);
@@ -440,19 +437,18 @@ impl VM {
     }
 
     fn jump(exa: &Rc<RefCell<Exa>>, target: Arg) -> Result<(), ExaResult> {
-        let mut x = 0;
-        let instr_list = { exa.borrow().instr_list.clone() };
-        for instr in instr_list.iter() {
-            if instr.0 != Instruction::Mark {
-                x += 1;
-                continue;
+        let res = exa
+            .borrow()
+            .instr_list
+            .iter()
+            .position(|i| i.0 == Instruction::Mark && i.1.as_ref().unwrap() == &target);
+        match res {
+            Some(x) => {
+                exa.borrow_mut().instr_ptr = x as u8;
+                Ok(())
             }
-            if instr.1.as_ref().unwrap() == &target {
-                exa.borrow_mut().instr_ptr = x;
-                return Ok(());
-            }
+            None => Err(ExaResult::Error(RuntimeError::LabelNotFound)),
         }
-        Err(ExaResult::Error(RuntimeError::LabelNotFound))
     }
 
     fn make(&self, exa: &Rc<RefCell<Exa>>) -> Result<(), ExaResult> {

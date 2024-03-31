@@ -23,20 +23,30 @@ fn main() {
                 // "prnt t",
                 // "addi x t x",
                 // "jump fib",
-                "grab 0",
-                "mark asd",
-                "copy f x",
-                "prnt x",
-                "test EOF",
-                "fjmp asd",
-                "prnt 'finished reading'",
-                "copy 'glorb' f",
-                "seek -1",
-                "prnt f",
+                "copy m x",
+                "@rep 5",
+                "test x = @{1,1}",
+                "tjmp CASE@{1,1}",
+                "@end",
+                "halt",
+                "@rep 5",
+                "mark CASE@{1,1}",
+                "prnt @{1,1}",
+                "halt",
+                "@end",
             ]
             .into_iter()
             .map(|s| s.to_string())
             .collect(),
+        )
+        .unwrap();
+    let xb = rhizome
+        .compile_exa(
+            "XB",
+            vec!["rand 1 5 x", "prnt x", "copy x m"]
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect(),
         )
         .unwrap();
 
@@ -47,6 +57,7 @@ fn main() {
     vm.add_file(f);
 
     vm.add_exa(xa);
+    vm.add_exa(xb);
 
     for _ in 0..50 {
         vm.step();
