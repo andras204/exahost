@@ -1,8 +1,5 @@
-use std::net::TcpStream;
-use std::thread;
-use std::time::Duration;
-
-use exahost::linker::{LinkManager, Message};
+use exahost::exavm::VM;
+use exahost::file::File;
 use exahost::Host;
 
 fn main() {
@@ -18,14 +15,24 @@ fn main() {
         .compile_exa(
             "XA",
             vec![
-                "prnt 'Fibonacci'",
-                "copy 1 t",
-                "mark fib",
+                // "prnt 'Fibonacci'",
+                // "copy 1 t",
+                // "mark fib",
+                // "prnt x",
+                // "addi x t t",
+                // "prnt t",
+                // "addi x t x",
+                // "jump fib",
+                "grab 0",
+                "mark asd",
+                "copy f x",
                 "prnt x",
-                "addi x t t",
-                "prnt t",
-                "addi x t x",
-                "jump fib",
+                "test EOF",
+                "fjmp asd",
+                "prnt 'finished reading'",
+                "copy 'glorb' f",
+                "seek -1",
+                "prnt f",
             ]
             .into_iter()
             .map(|s| s.to_string())
@@ -33,7 +40,17 @@ fn main() {
         )
         .unwrap();
 
-    let bin = bincode::serialize(&xa).unwrap();
+    let mut vm = VM::new();
+
+    let f = File::from(vec!["asd", "123", "fgh", "456"]);
+
+    vm.add_file(f);
+
+    vm.add_exa(xa);
+
+    for _ in 0..50 {
+        vm.step();
+    }
 
     // let mut stream = TcpStream::connect("localhost:9800").unwrap();
     // println!("dropping connection");
@@ -41,11 +58,5 @@ fn main() {
 
     // asd.join().unwrap();
 
-    rhizome.add_exa(bincode::deserialize(&bin).unwrap());
-
     // thread::sleep(Duration::from_millis(1000));
-
-    for _ in 0..50 {
-        rhizome.step();
-    }
 }

@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display};
 
 use serde::{Deserialize, Serialize};
 
-use crate::exa::{Arg, Comp, Instruction, RegLabel};
+use crate::exa::{Arg, Comp, InstrTuple, Instruction, RegLabel};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArgType {
@@ -83,12 +83,9 @@ impl Compiler {
         }
     }
 
-    pub fn compile(
-        &self,
-        source: Vec<String>,
-    ) -> Result<Vec<(Instruction, Option<Vec<Arg>>)>, Vec<String>> {
+    pub fn compile(&self, source: Vec<String>) -> Result<Box<[InstrTuple]>, Vec<String>> {
         let mut errs: Vec<String> = Vec::new();
-        let mut compiled: Vec<(Instruction, Option<Vec<Arg>>)> = Vec::with_capacity(source.len());
+        let mut compiled: Vec<InstrTuple> = Vec::with_capacity(source.len());
         if source.is_empty() {
             errs.push("nothing to compile".to_string());
         }
@@ -112,26 +109,30 @@ impl Compiler {
                 }
             };
             // check for multi M use
-            if !self.allow_multi_m {
-                let mut ms = 0;
-                if let Some(args) = instr.1.clone() {
-                    for a in args {
-                        if a == Arg::Register(RegLabel::M) {
-                            ms += 1;
-                        }
-                    }
-                }
-                if ms > 1 {
-                    errs.push(format!("Error on line {}: multiple M use not allowed", x));
-                    continue;
-                }
+            if !self.allow_multi_m && Self::check_multi_m((&instr.1, &instr.2, &instr.3)) {
+                errs.push(format!("Error on line {}: multiple M use not allowed", x));
+                continue;
             }
             compiled.push(instr);
         }
         if !errs.is_empty() {
             return Err(errs);
         }
-        Ok(compiled)
+        Ok(compiled.into_boxed_slice())
+    }
+
+    fn check_multi_m(args: (&Option<Arg>, &Option<Arg>, &Option<Arg>)) -> bool {
+        let mut m = 0;
+        if args.0.is_some() && args.0.as_ref().unwrap().is_reg_m() {
+            m += 1;
+        }
+        if args.1.is_some() && args.1.as_ref().unwrap().is_reg_m() {
+            m += 1;
+        }
+        if args.2.is_some() && args.2.as_ref().unwrap().is_reg_m() {
+            m += 1;
+        }
+        m > 1
     }
 
     fn split_line(&self, line: &str) -> Result<Vec<String>, CompilerError> {
@@ -177,16 +178,21 @@ impl Compiler {
         Ok(sliced)
     }
 
-    fn parse_line(
-        &self,
-        split_line: Vec<String>,
-    ) -> Result<(Instruction, Option<Vec<Arg>>), CompilerError> {
+    fn parse_line(&self, split_line: Vec<String>) -> Result<InstrTuple, CompilerError> {
         let instr: Instruction = match split_line[0].parse() {
             Ok(i) => i,
             Err(_) => return Err(CompilerError::UnknownInstruction(split_line[0].clone())),
         };
         if split_line.len() == 1 {
-            return Ok((instr, None));
+            return Ok((instr, None, None, None));
+        }
+
+        if instr == Instruction::Test && split_line.len() == 2 {
+            match &split_line[1].to_lowercase()[..] {
+                "mrd" => return Ok((Instruction::TestMrd, None, None, None)),
+                "eof" => return Ok((Instruction::TestEof, None, None, None)),
+                _ => (),
+            }
         }
 
         let signature = self.get_signature(&instr)?;
@@ -224,7 +230,17 @@ impl Compiler {
                 return Err(err.unwrap());
             }
         }
-        Ok((instr, Some(args)))
+
+        let args = Self::unpack_arg_vec(args);
+
+        Ok((instr, args.0, args.1, args.2))
+    }
+
+    fn unpack_arg_vec(args: Vec<Arg>) -> (Option<Arg>, Option<Arg>, Option<Arg>) {
+        let arg0 = args.first().map(|a| a.to_owned());
+        let arg1 = args.get(1).map(|a| a.to_owned());
+        let arg2 = args.get(2).map(|a| a.to_owned());
+        (arg0, arg1, arg2)
     }
 
     fn get_signature(&self, instr: &Instruction) -> Result<Vec<Vec<ArgType>>, CompilerError> {
@@ -239,11 +255,11 @@ impl Compiler {
             ArgType::Register => {
                 if ("xtfm".contains(str) && str.len() == 1) || str.starts_with('#') {
                     match &str[..] {
-                        "x" => Ok(Arg::Register(RegLabel::X)),
-                        "t" => Ok(Arg::Register(RegLabel::T)),
-                        "f" => Ok(Arg::Register(RegLabel::F)),
-                        "m" => Ok(Arg::Register(RegLabel::M)),
-                        _ => Ok(Arg::Register(RegLabel::H(str.to_owned()))),
+                        "x" => Ok(Arg::RegLabel(RegLabel::X)),
+                        "t" => Ok(Arg::RegLabel(RegLabel::T)),
+                        "f" => Ok(Arg::RegLabel(RegLabel::F)),
+                        "m" => Ok(Arg::RegLabel(RegLabel::M)),
+                        _ => Ok(Arg::RegLabel(RegLabel::H(str.to_owned()))),
                     }
                 } else {
                     Err(CompilerError::ArgTypeMismatch(
@@ -294,7 +310,7 @@ impl Compiler {
                     ))
                 }
             }
-            ArgType::Label => Ok(Arg::Label(str.to_owned())),
+            ArgType::Label => Ok(Arg::JumpLabel(str.to_owned())),
         }
     }
 }
@@ -309,8 +325,8 @@ pub struct CompilerConfig {
     comment_prefixes: Vec<String>,
 }
 
-impl CompilerConfig {
-    pub fn default() -> Self {
+impl Default for CompilerConfig {
+    fn default() -> Self {
         Self::custom(
             false,
             false,
@@ -323,7 +339,9 @@ impl CompilerConfig {
                 .collect(),
         )
     }
+}
 
+impl CompilerConfig {
     pub fn extended() -> Self {
         Self::custom(
             true,
@@ -381,6 +399,7 @@ impl CompilerConfig {
 
         let mut sigs: HashMap<Instruction, Vec<Vec<ArgType>>> = HashMap::from_iter([
             (Instruction::Copy, vec![vari.clone(), r.clone()]),
+            (Instruction::Void, vec![r.clone()]),
             (Instruction::Addi, vec![rn.clone(), rn.clone(), r.clone()]),
             (Instruction::Subi, vec![rn.clone(), rn.clone(), r.clone()]),
             (Instruction::Muli, vec![rn.clone(), rn.clone(), r.clone()]),
@@ -392,12 +411,21 @@ impl CompilerConfig {
                 Instruction::Test,
                 vec![vari.clone(), c.clone(), vari.clone()],
             ),
-            (Instruction::Mark, vec![l.clone()]),
+            (Instruction::TestEof, vec![]),
+            (Instruction::TestMrd, vec![]),
             (Instruction::Jump, vec![l.clone()]),
             (Instruction::Fjmp, vec![l.clone()]),
             (Instruction::Tjmp, vec![l.clone()]),
+            (Instruction::Make, vec![]),
+            (Instruction::Grab, vec![rn.clone()]),
+            (Instruction::File, vec![r.clone()]),
+            (Instruction::Seek, vec![rn.clone()]),
+            (Instruction::Mark, vec![l.clone()]),
+            (Instruction::Drop, vec![]),
+            (Instruction::Wipe, vec![]),
             (Instruction::Repl, vec![l.clone()]),
             (Instruction::Link, vec![rn.clone()]),
+            (Instruction::Host, vec![r.clone()]),
             (Instruction::Noop, vec![]),
             (Instruction::Halt, vec![]),
             (Instruction::Kill, vec![]),
