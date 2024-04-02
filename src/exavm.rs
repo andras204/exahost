@@ -1,8 +1,4 @@
-use std::{
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-    rc::Rc,
-};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use rand::{rngs::ThreadRng, Rng};
 
@@ -141,8 +137,9 @@ impl VM {
                         self.exas.remove(&k);
                     }
                 },
-                ExaResult::Error(_) => {
-                    self.exas.remove(&k);
+                ExaResult::Error(e) => {
+                    let name = self.exas.remove(&k).unwrap().borrow().name.clone();
+                    println!("{}| {:?}", name, e);
                 }
             }
         }
@@ -199,7 +196,7 @@ impl VM {
             Instruction::Make => self.make(&exa),
             Instruction::Grab => self.grab(&exa, arg1.unwrap()),
             Instruction::File => self.file(&exa, arg1.unwrap()),
-            Instruction::Seek => Self::seek(&exa, arg1.unwrap()),
+            Instruction::Seek => self.seek(&exa, arg1.unwrap()),
             Instruction::Drop => self.drop(&exa),
             Instruction::Wipe => Self::wipe(&exa),
 
@@ -489,10 +486,11 @@ impl VM {
         self.put_value(exa, Register::Number(f), arg1.reg_label().unwrap())
     }
 
-    fn seek(exa: &Rc<RefCell<Exa>>, arg1: Arg) -> Result<(), ExaResult> {
+    fn seek(&self, exa: &Rc<RefCell<Exa>>, arg1: Arg) -> Result<(), ExaResult> {
+        let n = self.get_number(exa, arg1)?;
         match exa.borrow_mut().reg_f.as_mut() {
             Some(f) => {
-                f.1.seek(arg1.number().unwrap());
+                f.1.seek(n);
                 Ok(())
             }
             None => Err(ExaResult::Error(RuntimeError::InvalidFRegAccess)),
@@ -554,7 +552,10 @@ impl VM {
                 RegLabel::T => Ok(exa.borrow().reg_t.clone()),
                 RegLabel::F => {
                     if let Some(f_ref) = exa.borrow_mut().reg_f.as_mut() {
-                        Ok(f_ref.1.read().unwrap())
+                        match f_ref.1.read() {
+                            Some(r) => Ok(r),
+                            None => Err(ExaResult::Error(RuntimeError::InvalidFRegAccess)),
+                        }
                     } else {
                         Err(ExaResult::Error(RuntimeError::InvalidFRegAccess))
                     }

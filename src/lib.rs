@@ -3,6 +3,7 @@ use std::net::ToSocketAddrs;
 use compiler::Compiler;
 use exa::Exa;
 use exavm::VM;
+use file::File;
 use serde::{Deserialize, Serialize};
 
 use crate::compiler::CompilerConfig;
@@ -37,6 +38,10 @@ impl Host {
 
     pub fn add_exa(&mut self, exa: Exa) {
         self.exa_vm.add_exa(exa);
+    }
+
+    pub fn add_file(&mut self, file: File) {
+        self.exa_vm.add_file(file);
     }
 
     pub fn step(&mut self) {

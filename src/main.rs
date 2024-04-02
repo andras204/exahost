@@ -1,4 +1,3 @@
-use exahost::exavm::VM;
 use exahost::file::File;
 use exahost::Host;
 
@@ -43,24 +42,34 @@ fn main() {
     let xb = rhizome
         .compile_exa(
             "XB",
-            vec!["rand 1 5 x", "prnt x", "copy x m"]
-                .into_iter()
-                .map(|s| s.to_string())
-                .collect(),
+            vec![
+                "grab 0",
+                "mark ASD",
+                "seek -999",
+                "rand 1 5 x",
+                "prnt x",
+                "seek x",
+                "test eof",
+                "tjmp ASD",
+                "copy f x",
+                "prnt x",
+                "copy x m",
+            ]
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect(),
         )
         .unwrap();
 
-    let mut vm = VM::new();
+    let f = File::from(vec!["1", "2", "3", "4", "5"]);
 
-    let f = File::from(vec!["asd", "123", "fgh", "456"]);
+    rhizome.add_file(f);
 
-    vm.add_file(f);
-
-    vm.add_exa(xa);
-    vm.add_exa(xb);
+    rhizome.add_exa(xa);
+    rhizome.add_exa(xb);
 
     for _ in 0..50 {
-        vm.step();
+        rhizome.step();
     }
 
     // let mut stream = TcpStream::connect("localhost:9800").unwrap();
