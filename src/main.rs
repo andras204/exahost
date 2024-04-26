@@ -1,62 +1,102 @@
-use exahost::exavm::VM;
 use exahost::file::File;
 use exahost::Host;
 
 fn main() {
-    let mut rhizome = Host::new("Rhizome", "localhost:6800");
-    // rhizome.connect("localhost:6800");
+    let mut rhizome = Host::default();
+    rhizome.save_config().unwrap();
 
-    // let asd = thread::spawn(|| {
-    //     let lm = LinkManager::new();
-    //     lm.start_listening("0.0.0.0:9800");
-    // });
+    let res = rhizome.compile_exa(
+        "ASD",
+        vec![
+            "@rep 5",
+            "addi 32000 x t",
+            "@end",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+        ],
+    );
+
+    match res {
+        Ok(_) => {
+            println!("compiled successfully...");
+        }
+        Err(errs) => {
+            for e in errs {
+                eprintln!("{}", e);
+            }
+        }
+    }
 
     let xa = rhizome
         .compile_exa(
             "XA",
             vec![
-                // "prnt 'Fibonacci'",
-                // "copy 1 t",
-                // "mark fib",
-                // "prnt x",
-                // "addi x t t",
-                // "prnt t",
-                // "addi x t x",
-                // "jump fib",
+                "copy m x",
+                "@rep 5",
+                "test x = @{1,1}",
+                "tjmp CASE@{1,1}",
+                "@end",
+                "halt",
+                "@rep 5",
+                "mark CASE@{1,1}",
+                "prnt @{1,1}",
+                "halt",
+                "@end",
+            ],
+        )
+        .unwrap();
+    let xb = rhizome
+        .compile_exa(
+            "XB",
+            vec![
                 "grab 0",
-                "mark asd",
+                "mark ASD",
+                "seek -999",
+                "rand 1 5 x",
+                "prnt x",
+                "seek x",
+                "test eof",
+                "tjmp ASD",
                 "copy f x",
                 "prnt x",
-                "test EOF",
-                "fjmp asd",
-                "prnt 'finished reading'",
-                "copy 'glorb' f",
-                "seek -1",
-                "prnt f",
-            ]
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect(),
+                "copy x m",
+            ],
         )
         .unwrap();
 
-    let mut vm = VM::new();
+    let xc = rhizome.compile_exa("XC", vec!["host x", "prnt x"]).unwrap();
 
-    let f = File::from(vec!["asd", "123", "fgh", "456"]);
+    let fi = rhizome
+        .compile_exa(
+            "FI",
+            vec![
+                "copy 1 t",
+                "mark LOOP",
+                "prnt x",
+                "addi x t t",
+                "prnt t",
+                "addi x t x",
+                "jump LOOP",
+            ],
+        )
+        .unwrap();
 
-    vm.add_file(f);
+    let f = File::from(vec!["1", "2", "3", "4", "5"]);
 
-    vm.add_exa(xa);
+    rhizome.add_file(f);
 
-    for _ in 0..50 {
-        vm.step();
+    // rhizome.add_exa(xa);
+    // rhizome.add_exa(xb);
+    // rhizome.add_exa(xc);
+    rhizome.add_exa(fi);
+
+    for _ in 0..70 {
+        rhizome.step();
     }
-
-    // let mut stream = TcpStream::connect("localhost:9800").unwrap();
-    // println!("dropping connection");
-    // drop(stream);
-
-    // asd.join().unwrap();
-
-    // thread::sleep(Duration::from_millis(1000));
 }

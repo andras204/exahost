@@ -5,35 +5,31 @@ use crate::exa::Register;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct File {
     content: Vec<Register>,
-    ptr: usize,
+    ptr: i16,
 }
 
 impl File {
     pub fn read(&mut self) -> Option<Register> {
-        let res = Some(self.content.get(self.ptr)?.clone());
-        self.ptr = usize::clamp(self.ptr + 1, 0, self.content.len());
+        let res = Some(self.content.get(self.ptr as usize)?.clone());
+        self.ptr = i16::clamp(self.ptr + 1, 0, self.content.len() as i16);
         res
     }
 
     pub fn write(&mut self, value: Register) {
-        if self.ptr >= self.content.len() {
+        if self.ptr >= self.content.len() as i16 {
             self.content.push(value);
         } else {
-            self.content[self.ptr] = value;
+            self.content[self.ptr as usize] = value;
         }
-        self.ptr = usize::clamp(self.ptr + 1, 0, self.content.len());
+        self.ptr = i16::clamp(self.ptr + 1, 0, self.content.len() as i16);
     }
 
     pub fn seek(&mut self, amount: i16) {
-        self.ptr = isize::clamp(
-            self.ptr as isize + amount as isize,
-            0,
-            self.content.len() as isize,
-        ) as usize;
+        self.ptr = i16::clamp(self.ptr + amount, 0, self.content.len() as i16);
     }
 
     pub fn is_eof(&self) -> bool {
-        self.ptr == self.content.len()
+        self.ptr == self.content.len() as i16
     }
 
     pub fn new() -> Self {
@@ -50,29 +46,35 @@ impl Default for File {
     }
 }
 
-impl From<Vec<String>> for File {
-    fn from(value: Vec<String>) -> Self {
+impl From<Vec<&str>> for File {
+    #[cfg(not(feature = "full-register-range"))]
+    fn from(value: Vec<&str>) -> Self {
         Self {
             content: value
                 .into_iter()
                 .map(|s| match s.parse::<i16>() {
-                    Ok(n) => Register::Number(n),
-                    Err(_) => Register::Keyword(s),
+                    Ok(n) => {
+                        if !(-9999..=9999).contains(&n) {
+                            Register::Keyword(n.to_string().into_boxed_str())
+                        } else {
+                            Register::Number(n)
+                        }
+                    }
+                    Err(_) => Register::Keyword(s.into()),
                 })
                 .collect(),
             ptr: 0,
         }
     }
-}
 
-impl From<Vec<&str>> for File {
+    #[cfg(feature = "full-register-range")]
     fn from(value: Vec<&str>) -> Self {
         Self {
             content: value
                 .into_iter()
                 .map(|s| match s.parse::<i16>() {
                     Ok(n) => Register::Number(n),
-                    Err(_) => Register::Keyword(s.to_string()),
+                    Err(_) => Register::Keyword(s.into()),
                 })
                 .collect(),
             ptr: 0,

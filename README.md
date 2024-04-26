@@ -6,7 +6,7 @@ The project is currently still work in progress, and very much incomplete.
 
 ## Implementation status:
 ### Instruction interpreter
-  - [ ] Registers
+  - [x] Registers
     - [x] X
     - [x] T
 	- [x] F
@@ -49,7 +49,7 @@ The project is currently still work in progress, and very much incomplete.
     - [x] note
     - [x] noop
     - [x] rand
-  - [ ] Macros
+  - [x] Macros
   - [ ] Extra Instructions // mainly for debug
     - [x] prnt
 
@@ -60,7 +60,7 @@ The project is currently still work in progress, and very much incomplete.
 
 ### Host configuration
   - [ ] max connections
-  - [ ] max exas
+  - [x] max exas
   - [ ] bind address/port
-  - [ ] files
+  - [x] files
   - [ ] extra features
