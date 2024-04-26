@@ -1,0 +1,17 @@
+hostname = "Rhizome"
+
+[compiler_config]
+extra_instructions = true
+keyword_literals = true
+full_comparisons = true
+keyword_delimiter = "'"
+comment_prefixes = [
+    "note",
+    ";;",
+    "//",
+    "#",
+]
+
+[vm_config]
+max_exas = 9
+max_files = 9

@@ -6,10 +6,10 @@ The project is currently still work in progress, and very much incomplete.
 
 ## Implementation status:
 ### Instruction interpreter
-  - [ ] Registers
+  - [x] Registers
     - [x] X
     - [x] T
-	- [ ] F
+	- [x] F
 	- [ ] M
       - [x] local
       - [ ] global
@@ -25,30 +25,30 @@ The project is currently still work in progress, and very much incomplete.
 	- [x] jump
 	- [x] tjmp
 	- [x] fjmp
-	- [ ] test
+	- [x] test
       - [x] numbers
       - [x] keywords
-      - [ ] EOF
-      - [ ] MRD
+      - [x] EOF
+      - [x] MRD
     - [x] repl
     - [x] halt
     - [x] kill
     - [x] link
-    - [ ] host
-    - [ ] mode
-    - [ ] void
-      - [ ] M
-      - [ ] F
-    - [ ] make
-    - [ ] grab
-    - [ ] file
-    - [ ] seek
-    - [ ] drop
-    - [ ] wipe
+    - [x] host
+    - [x] mode
+    - [x] void
+      - [x] M
+      - [x] F
+    - [x] make
+    - [x] grab
+    - [x] file
+    - [x] seek
+    - [x] drop
+    - [x] wipe
     - [x] note
     - [x] noop
     - [x] rand
-  - [ ] Macros
+  - [x] Macros
   - [ ] Extra Instructions // mainly for debug
     - [x] prnt
 
@@ -59,7 +59,7 @@ The project is currently still work in progress, and very much incomplete.
 
 ### Host configuration
   - [ ] max connections
-  - [ ] max exas
+  - [x] max exas
   - [ ] bind address/port
-  - [ ] files
+  - [x] files
   - [ ] extra features
