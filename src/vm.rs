@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use rand::{rngs::ThreadRng, Rng};
 
 use crate::config::VMConfig;
-use crate::exa::{Arg, Comp, Exa, Instruction, RegLabel, Register};
+use crate::exa::{Arg, Comp, Exa, OpCode, RegLabel, Register};
 use crate::file::File;
 
 #[derive(Debug, Clone, Copy)]
@@ -162,51 +162,52 @@ impl VM {
         };
 
         // skip MARKs
-        if instr.0 == Instruction::Mark {
+        if instr.0 == OpCode::Mark {
             exa.borrow_mut().instr_ptr += 1;
             return self.exec(exa);
         }
 
         let res: Result<(), ExaResult> = match instr.0 {
-            Instruction::Copy => self.copy(exa, instr.two_args()),
-            Instruction::Void => self.void(exa, instr.one_arg()),
+            OpCode::Copy => self.copy(exa, instr.two_args()),
+            OpCode::Void => self.void(exa, instr.one_arg()),
 
-            Instruction::Addi => self.addi(exa, instr.three_args()),
-            Instruction::Subi => self.subi(exa, instr.three_args()),
-            Instruction::Muli => self.muli(exa, instr.three_args()),
-            Instruction::Divi => self.divi(exa, instr.three_args()),
-            Instruction::Modi => self.modi(exa, instr.three_args()),
-            Instruction::Swiz => self.swiz(exa, instr.three_args()),
-            Instruction::Rand => self.rand(exa, instr.three_args()),
+            OpCode::Addi => self.addi(exa, instr.three_args()),
+            OpCode::Subi => self.subi(exa, instr.three_args()),
+            OpCode::Muli => self.muli(exa, instr.three_args()),
+            OpCode::Divi => self.divi(exa, instr.three_args()),
+            OpCode::Modi => self.modi(exa, instr.three_args()),
+            OpCode::Swiz => self.swiz(exa, instr.three_args()),
+            OpCode::Rand => self.rand(exa, instr.three_args()),
+            OpCode::Mode => unimplemented!(),
 
-            Instruction::Test => self.test(exa, instr.three_args()),
-            Instruction::TestMrd => self.test_mrd(exa),
-            Instruction::TestEof => Self::test_eof(exa),
+            OpCode::Test => self.test(exa, instr.three_args()),
+            OpCode::TestMrd => self.test_mrd(exa),
+            OpCode::TestEof => Self::test_eof(exa),
 
-            Instruction::Jump => Self::jump(exa, instr.one_arg()),
-            Instruction::Tjmp => Self::tjmp(exa, instr.one_arg()),
-            Instruction::Fjmp => Self::fjmp(exa, instr.one_arg()),
+            OpCode::Jump => Self::jump(exa, instr.one_arg()),
+            OpCode::Tjmp => Self::tjmp(exa, instr.one_arg()),
+            OpCode::Fjmp => Self::fjmp(exa, instr.one_arg()),
 
-            Instruction::Make => self.make(exa),
-            Instruction::Grab => self.grab(exa, instr.one_arg()),
-            Instruction::File => self.file(exa, instr.one_arg()),
-            Instruction::Seek => self.seek(exa, instr.one_arg()),
-            Instruction::Drop => self.drop(exa),
-            Instruction::Wipe => Self::wipe(exa),
+            OpCode::Make => self.make(exa),
+            OpCode::Grab => self.grab(exa, instr.one_arg()),
+            OpCode::File => self.file(exa, instr.one_arg()),
+            OpCode::Seek => self.seek(exa, instr.one_arg()),
+            OpCode::Drop => self.drop(exa),
+            OpCode::Wipe => Self::wipe(exa),
 
-            Instruction::Link => Err(ExaResult::SideEffect(SideEffect::Link(
+            OpCode::Link => Err(ExaResult::SideEffect(SideEffect::Link(
                 instr.one_arg().number().unwrap(),
             ))),
-            Instruction::Repl => Self::repl(exa, instr.one_arg()),
-            Instruction::Halt => Err(ExaResult::SideEffect(SideEffect::Halt)),
-            Instruction::Kill => Err(ExaResult::SideEffect(SideEffect::Kill)),
+            OpCode::Repl => Self::repl(exa, instr.one_arg()),
+            OpCode::Halt => Err(ExaResult::SideEffect(SideEffect::Halt)),
+            OpCode::Kill => Err(ExaResult::SideEffect(SideEffect::Kill)),
 
-            Instruction::Host => self.host(exa, instr.one_arg()),
-            Instruction::Noop => Ok(()),
+            OpCode::Host => self.host(exa, instr.one_arg()),
+            OpCode::Noop => Ok(()),
 
-            Instruction::Mark => unreachable!(),
+            OpCode::Mark => unreachable!(),
 
-            Instruction::Prnt => self.prnt(exa, instr.one_arg()),
+            OpCode::Prnt => self.prnt(exa, instr.one_arg()),
         };
 
         if let Err(e) = res {
@@ -293,7 +294,7 @@ impl VM {
         let num2 = self.get_number(exa, num2)?;
         self.put_value(
             exa,
-            Register::Number(num1 * num2),
+            Register::Number(i16::saturating_mul(num1, num2)),
             target.reg_label().unwrap(),
         )?;
         Ok(())
@@ -428,7 +429,7 @@ impl VM {
     }
 
     fn jump(exa: &RefCell<Exa>, target: Arg) -> Result<(), ExaResult> {
-        exa.borrow_mut().instr_ptr = match target.number() {
+        exa.borrow_mut().instr_ptr = match target.jump_index() {
             Ok(n) => n as u8,
             Err(_) => return Err(ExaResult::Error(RuntimeError::InvalidArgument)),
         };

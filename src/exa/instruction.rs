@@ -4,15 +4,15 @@ use std::{fmt::Display, str::FromStr};
 use crate::exa::arg::Arg;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct InstrTuple(
-    pub Instruction,
+pub struct Instruction(
+    pub OpCode,
     pub Option<Arg>,
     pub Option<Arg>,
     pub Option<Arg>,
 );
 
-impl InstrTuple {
-    pub fn destructure(self) -> (Instruction, Option<Arg>, Option<Arg>, Option<Arg>) {
+impl Instruction {
+    pub fn destructure(self) -> (OpCode, Option<Arg>, Option<Arg>, Option<Arg>) {
         (self.0, self.1, self.2, self.3)
     }
 
@@ -38,7 +38,7 @@ impl InstrTuple {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub enum Instruction {
+pub enum OpCode {
     /// `COPY value: R/N target: R`
     ///
     /// copies `value` into `target`
@@ -90,6 +90,9 @@ pub enum Instruction {
     ///
     /// TODO: docs
     Swiz,
+
+    /// doesn't work
+    Mode,
 
     /// `TEST val1: R/N comp: C val2: R/N`
     ///
@@ -223,7 +226,7 @@ pub enum Instruction {
     Prnt,
 }
 
-impl FromStr for Instruction {
+impl FromStr for OpCode {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match &s.to_lowercase()[..] {
@@ -235,6 +238,7 @@ impl FromStr for Instruction {
             "divi" => Ok(Self::Divi),
             "modi" => Ok(Self::Modi),
             "swiz" => Ok(Self::Swiz),
+            "mode" => Ok(Self::Mode),
             "test" => Ok(Self::Test),
             "test mrd" => Ok(Self::TestMrd),
             "test eof" => Ok(Self::TestEof),
@@ -255,12 +259,12 @@ impl FromStr for Instruction {
             "host" => Ok(Self::Host),
             "noop" => Ok(Self::Noop),
             "prnt" => Ok(Self::Prnt),
-            _ => Err(format!("could not parse '{}' as instruction", s)),
+            _ => Err(format!("could not parse '{}' as OpCode", s)),
         }
     }
 }
 
-impl Display for Instruction {
+impl Display for OpCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Copy => write!(f, "COPY"),
@@ -271,6 +275,7 @@ impl Display for Instruction {
             Self::Divi => write!(f, "DIVI"),
             Self::Modi => write!(f, "MODI"),
             Self::Swiz => write!(f, "SWIZ"),
+            Self::Mode => write!(f, "MODE"),
             Self::Test => write!(f, "TEST"),
             Self::TestMrd => write!(f, "TEST MRD"),
             Self::TestEof => write!(f, "TEST EOF"),

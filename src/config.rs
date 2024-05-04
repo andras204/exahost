@@ -2,10 +2,9 @@ use std::rc::Rc;
 
 use serde::{Deserialize, Serialize};
 
-mod compiler_config;
 mod vm_config;
 
-pub use compiler_config::CompilerConfig;
+use crate::compiler::config::Config as CompilerConfig;
 pub use vm_config::VMConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
