@@ -13,10 +13,10 @@ fn main() {
         "",
         "",
         "",
-        "",
-        "",
-        "",
-        "",
+        "mode",
+        "mode",
+        "mode",
+        "mode",
         "copy 8008 #DBG",
     ];
 
@@ -58,19 +58,6 @@ fn main() {
         "jump LOOP",
     ];
 
-    let res = rhizome.compile_exa("ASD", test);
-
-    match res {
-        Ok(_) => {
-            println!("compiled successfully...");
-        }
-        Err(errs) => {
-            for e in errs {
-                eprintln!("{:?}", e);
-            }
-        }
-    }
-
     let f = File::from(vec!["1", "2", "3", "4", "5"]);
 
     let xa = rhizome.compile_exa("XA", switch).unwrap();
@@ -83,12 +70,14 @@ fn main() {
 
     let fi = rhizome.compile_exa("FI", fibonacci).unwrap();
 
+    let test = rhizome.compile_exa("TEST", test).unwrap();
+
     rhizome.add_file(f);
 
     rhizome.add_exa(xa);
     rhizome.add_exa(xb);
     rhizome.add_exa(xc);
-    // rhizome.add_exa(fi);
+    rhizome.add_exa(test);
 
     for _ in 0..70 {
         rhizome.step();

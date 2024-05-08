@@ -4,8 +4,8 @@ use rand::{rngs::ThreadRng, Rng};
 
 pub use self::config::Config;
 pub use self::hw_register::HWRegister;
-use crate::exa::File;
 use crate::exa::{Arg, Comp, Exa, OpCode, RegLabel, Register};
+use crate::exa::{File, RegMMode};
 pub use hw_register::DebugOutput;
 
 mod config;
@@ -191,7 +191,7 @@ impl VM {
             OpCode::Modi => self.modi(exa, instr.three_args()),
             OpCode::Swiz => self.swiz(exa, instr.three_args()),
             OpCode::Rand => self.rand(exa, instr.three_args()),
-            OpCode::Mode => unimplemented!(),
+            OpCode::Mode => Self::mode(exa),
 
             OpCode::Test => self.test(exa, instr.three_args()),
             OpCode::TestMrd => self.test_mrd(exa),
@@ -387,6 +387,15 @@ impl VM {
                 target.reg_label().unwrap(),
             )?;
         }
+        Ok(())
+    }
+
+    fn mode(exa: &RefCell<Exa>) -> Result<(), ExaResult> {
+        let mut exa = exa.borrow_mut();
+        exa.mode = match exa.mode {
+            RegMMode::Global => RegMMode::Local,
+            RegMMode::Local => RegMMode::Global,
+        };
         Ok(())
     }
 
