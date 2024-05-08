@@ -4,20 +4,17 @@ use std::{
     rc::Rc,
 };
 
-use compiler::{config::Config as CompilerConfig, Compiler};
-use config::{HostConfig, VMConfig};
-use exa::Exa;
-use file::File;
-use vm::VM;
+use compiler::{Compiler, Config as CompilerConfig};
+use config::HostConfig;
+use exa::{Exa, File};
+use vm::{Config as VMConfig, VM};
 
 pub mod compiler;
 pub mod config;
 pub mod exa;
-pub mod file;
 pub mod server;
 pub mod vm;
 
-#[derive(Debug)]
 pub struct Host {
     compiler: Compiler,
     vm: VM,
@@ -27,7 +24,7 @@ pub struct Host {
 impl Host {
     pub fn new(host_name: &str, _bind_addr: &str) -> Host {
         println!("Initializing host: {}", host_name);
-        let exa_compiler = Compiler::new(CompilerConfig::extended());
+        let exa_compiler = Compiler::new(CompilerConfig::default());
         let vm_config: Rc<VMConfig> = VMConfig::default().into();
         let hostname: Rc<Box<str>> = Rc::new(host_name.into());
         Host {

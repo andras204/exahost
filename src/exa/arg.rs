@@ -1,8 +1,9 @@
 use std::{fmt::Display, str::FromStr};
 
+use bitcode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Encode, Decode)]
 pub enum Arg {
     RegLabel(RegLabel),
     Number(i16),
@@ -60,13 +61,13 @@ impl Display for Arg {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Encode, Decode)]
 pub enum RegLabel {
     X,
     T,
     F,
     M,
-    H(String),
+    H(Box<str>),
 }
 
 impl FromStr for RegLabel {
@@ -80,7 +81,7 @@ impl FromStr for RegLabel {
             _ => (),
         }
         if s.starts_with('#') {
-            Ok(Self::H(s.to_string()))
+            Ok(Self::H(s.into()))
         } else {
             Err(format!("cannot parse '{}' as RegisterLabel", s))
         }
@@ -99,7 +100,7 @@ impl Display for RegLabel {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Encode, Decode)]
 pub enum Comp {
     Eq,
     Gt,

@@ -1,4 +1,4 @@
-use exahost::file::File;
+use exahost::exa::File;
 use exahost::Host;
 
 fn main() {
@@ -17,7 +17,7 @@ fn main() {
         "",
         "",
         "",
-        "prnt 'asdasfsdgsfg'",
+        "copy 8008 #DBG",
     ];
 
     let switch = vec![
@@ -29,7 +29,7 @@ fn main() {
         "halt",
         "@rep 5",
         "mark CASE@{1,1}",
-        "prnt @{1,1}",
+        "copy @{1,1} #DBG",
         "halt",
         "@end",
     ];
@@ -39,25 +39,24 @@ fn main() {
         "mark ASD",
         "seek -999",
         "rand 1 5 x",
-        "prnt x",
+        "copy x #DBG",
         "seek x",
         "test eof",
         "tjmp ASD",
         "copy f x",
-        "prnt x",
+        "copy x #DBG",
         "copy x m",
     ];
 
-    // let fibonacci = vec![
-    //     "copy 1 t",
-    //     "mark LOOP",
-    //     "prnt x",
-    //     "addi x t t",
-    //     "prnt t",
-    //     "addi x t x",
-    //     "jump LOOP",
-    // ];
-    let fibonacci = vec!["muli 9999 9999 x", "prnt x"];
+    let fibonacci = vec![
+        "copy 1 t",
+        "mark LOOP",
+        "copy x #DBG",
+        "addi x t t",
+        "copy t #DBG",
+        "addi x t x",
+        "jump LOOP",
+    ];
 
     let res = rhizome.compile_exa("ASD", test);
 
@@ -72,21 +71,24 @@ fn main() {
         }
     }
 
+    let f = File::from(vec!["1", "2", "3", "4", "5"]);
+
     let xa = rhizome.compile_exa("XA", switch).unwrap();
+
     let xb = rhizome.compile_exa("XB", reader).unwrap();
 
-    let xc = rhizome.compile_exa("XC", vec!["host x", "prnt x"]).unwrap();
+    let xc = rhizome
+        .compile_exa("XC", vec!["host x", "copy x #DBG"])
+        .unwrap();
 
     let fi = rhizome.compile_exa("FI", fibonacci).unwrap();
 
-    let f = File::from(vec!["1", "2", "3", "4", "5"]);
-
     rhizome.add_file(f);
 
-    // rhizome.add_exa(xa);
-    // rhizome.add_exa(xb);
-    // rhizome.add_exa(xc);
-    rhizome.add_exa(fi);
+    rhizome.add_exa(xa);
+    rhizome.add_exa(xb);
+    rhizome.add_exa(xc);
+    // rhizome.add_exa(fi);
 
     for _ in 0..70 {
         rhizome.step();

@@ -2,10 +2,8 @@ use std::rc::Rc;
 
 use serde::{Deserialize, Serialize};
 
-mod vm_config;
-
-use crate::compiler::config::Config as CompilerConfig;
-pub use vm_config::VMConfig;
+use crate::compiler::Config as CompilerConfig;
+use crate::vm::Config as VMConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HostConfig {

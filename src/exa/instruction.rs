@@ -1,9 +1,10 @@
+use bitcode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::{fmt::Display, str::FromStr};
 
-use crate::exa::arg::Arg;
+use crate::exa::Arg;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Encode, Decode)]
 pub struct Instruction(
     pub OpCode,
     pub Option<Arg>,
@@ -37,7 +38,7 @@ impl Instruction {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Encode, Decode)]
 pub enum OpCode {
     /// `COPY value: R/N target: R`
     ///

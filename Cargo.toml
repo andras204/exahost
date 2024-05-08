@@ -7,13 +7,9 @@ edition = "2021"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive", "rc"] }
-bincode = "1.3.3"
 flume = "0.11.0"
 rand = "0.8.5"
 tokio = { version = "1.36.0", features = ["full"] }
 toml = { version = "0.8.12", features = ["preserve_order"] }
 regex = "1.10.4"
-
-[features]
-default = []
-full-register-range = []
+bitcode = { version = "0.6.0" }

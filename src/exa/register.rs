@@ -1,8 +1,9 @@
 use std::{cmp::Ordering, str::FromStr};
 
+use bitcode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Encode, Decode)]
 pub enum Register {
     Number(i16),
     Keyword(Box<str>),
@@ -40,7 +41,6 @@ pub enum ParseError {
 impl FromStr for Register {
     type Err = ParseError;
 
-    #[cfg(not(feature = "full-register-range"))]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.len() > 256 {
             return Err(ParseError::StringTooLong);
@@ -53,17 +53,6 @@ impl FromStr for Register {
                     Err(ParseError::NumberOutOfBounds)
                 }
             }
-            Err(_) => Ok(Register::Keyword(s.into())),
-        }
-    }
-
-    #[cfg(feature = "full-register-range")]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.len() > 256 {
-            return Err(ParseError::StringTooLong);
-        }
-        match s.parse::<i16>() {
-            Ok(n) => Ok(Register::Number(n)),
             Err(_) => Ok(Register::Keyword(s.into())),
         }
     }

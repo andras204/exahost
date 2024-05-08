@@ -1,9 +1,11 @@
+use bitcode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate::exa::Register;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Encode, Decode)]
 pub struct File {
+    path: Box<str>,
     content: Vec<Register>,
     ptr: i16,
 }
@@ -32,8 +34,9 @@ impl File {
         self.ptr == self.content.len() as i16
     }
 
-    pub fn new() -> Self {
+    pub fn new(path: &str) -> Self {
         Self {
+            path: path.into(),
             content: Vec::new(),
             ptr: 0,
         }
@@ -42,14 +45,14 @@ impl File {
 
 impl Default for File {
     fn default() -> Self {
-        Self::new()
+        Self::new("./hosts/swap")
     }
 }
 
 impl From<Vec<&str>> for File {
-    #[cfg(not(feature = "full-register-range"))]
     fn from(value: Vec<&str>) -> Self {
         Self {
+            path: "./hosts/swap".into(),
             content: value
                 .into_iter()
                 .map(|s| match s.parse::<i16>() {
@@ -60,20 +63,6 @@ impl From<Vec<&str>> for File {
                             Register::Number(n)
                         }
                     }
-                    Err(_) => Register::Keyword(s.into()),
-                })
-                .collect(),
-            ptr: 0,
-        }
-    }
-
-    #[cfg(feature = "full-register-range")]
-    fn from(value: Vec<&str>) -> Self {
-        Self {
-            content: value
-                .into_iter()
-                .map(|s| match s.parse::<i16>() {
-                    Ok(n) => Register::Number(n),
                     Err(_) => Register::Keyword(s.into()),
                 })
                 .collect(),

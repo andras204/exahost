@@ -7,9 +7,9 @@ use std::{
     ops::{Deref, DerefMut, Range},
 };
 
-use self::config::Config;
+pub use self::config::Config;
 
-pub mod config;
+mod config;
 
 #[derive(Debug, Clone)]
 pub struct Token {
@@ -323,7 +323,16 @@ impl Compiler {
                     continue;
                 }
             };
-            let sig = self.instruction_signatures.get(&op).unwrap();
+            let sig = match self.instruction_signatures.get(&op) {
+                Some(sig) => sig,
+                None => {
+                    line[0] = Err(Error::from_token(
+                        line[0].clone().unwrap(),
+                        ErrorType::UnknownInstruction,
+                    ));
+                    continue;
+                }
+            };
             {
                 let arg_slice = &mut line[1..];
                 for x in 0..usize::min(arg_slice.len(), sig.len()) {

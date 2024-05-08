@@ -1,12 +1,12 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VMConfig {
+pub struct Config {
     pub max_exas: usize,
     pub max_files: usize,
 }
 
-impl VMConfig {
+impl Config {
     pub fn new(max_exas: usize, max_files: usize) -> Self {
         Self {
             max_exas,
@@ -15,7 +15,7 @@ impl VMConfig {
     }
 }
 
-impl Default for VMConfig {
+impl Default for Config {
     fn default() -> Self {
         Self::new(9, 9)
     }

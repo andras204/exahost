@@ -1,16 +1,17 @@
+use bitcode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-use crate::file::File;
-
 mod arg;
+mod file;
 mod instruction;
 mod register;
 
 pub use arg::{Arg, Comp, RegLabel};
+pub use file::File;
 pub use instruction::{Instruction, OpCode};
 pub use register::Register;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct Exa {
     pub name: String,
     pub instr_list: Box<[Instruction]>,
@@ -19,6 +20,7 @@ pub struct Exa {
     pub reg_x: Register,
     pub reg_t: Register,
     pub reg_f: Option<(i16, File)>,
+    pub mode: RegMMode,
 }
 
 impl Exa {
@@ -31,6 +33,13 @@ impl Exa {
             reg_x: Register::Number(0),
             reg_t: Register::Number(0),
             reg_f: None,
+            mode: RegMMode::Local,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Encode, Decode)]
+pub enum RegMMode {
+    Global,
+    Local,
 }

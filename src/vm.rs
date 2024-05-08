@@ -2,9 +2,14 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use rand::{rngs::ThreadRng, Rng};
 
-use crate::config::VMConfig;
+pub use self::config::Config;
+pub use self::hw_register::HWRegister;
+use crate::exa::File;
 use crate::exa::{Arg, Comp, Exa, OpCode, RegLabel, Register};
-use crate::file::File;
+pub use hw_register::DebugOutput;
+
+mod config;
+mod hw_register;
 
 #[derive(Debug, Clone, Copy)]
 enum ExaResult {
@@ -46,7 +51,6 @@ enum RuntimeError {
     NumericValueRequired,
 }
 
-#[derive(Debug)]
 pub struct VM {
     exas: HashMap<usize, RefCell<Exa>>,
     reg_m: RefCell<Option<Register>>,
@@ -54,11 +58,19 @@ pub struct VM {
 
     files: RefCell<HashMap<i16, File>>,
     hostname: Rc<Box<str>>,
-    config: Rc<VMConfig>,
+    config: Rc<Config>,
+    hw_registers: RefCell<HashMap<Box<str>, Box<dyn HWRegister>>>,
 }
 
 impl VM {
-    pub fn new(hostname: Rc<Box<str>>, config: Rc<VMConfig>) -> Self {
+    pub fn new(hostname: Rc<Box<str>>, config: Rc<Config>) -> Self {
+        let mut hw_registers: HashMap<Box<str>, Box<dyn HWRegister>> = HashMap::new();
+        hw_registers.insert(
+            "#DBG".into(),
+            Box::new(hw_register::DebugOutput {
+                prefix: "host::debug>".into(),
+            }),
+        );
         Self {
             exas: HashMap::with_capacity(config.max_exas),
             reg_m: RefCell::new(None),
@@ -66,6 +78,7 @@ impl VM {
             files: RefCell::new(HashMap::with_capacity(config.max_files)),
             hostname,
             config,
+            hw_registers: RefCell::new(hw_registers),
         }
     }
 
@@ -222,7 +235,7 @@ impl VM {
 
 impl Default for VM {
     fn default() -> Self {
-        Self::new(Rc::new("Rhizome".into()), Rc::new(VMConfig::default()))
+        Self::new(Rc::new("Rhizome".into()), Rc::new(Config::default()))
     }
 }
 
@@ -447,7 +460,7 @@ impl VM {
                 .max()
                 .unwrap_or(&300i16)
                 .to_owned(),
-            File::new(),
+            File::default(),
         ));
         Ok(())
     }
@@ -557,13 +570,15 @@ impl VM {
                     Some(r) => Ok(r),
                     None => Err(ExaResult::Block(Block::Recv)),
                 },
-                RegLabel::H(_) => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
+                RegLabel::H(reg) => match self.hw_registers.borrow().get(&reg) {
+                    Some(hwr) => hwr.read(),
+                    None => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
+                },
             },
             _ => Err(ExaResult::Error(RuntimeError::InvalidArgument)),
         }
     }
 
-    #[cfg(not(feature = "full-register-range"))]
     fn put_value(
         &self,
         exa: &RefCell<Exa>,
@@ -600,44 +615,10 @@ impl VM {
                     Ok(())
                 }
             }
-            RegLabel::H(_) => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
-        }
-    }
-
-    #[cfg(feature = "full-register-range")]
-    fn put_value(
-        &self,
-        exa: &RefCell<Exa>,
-        value: Register,
-        target: RegLabel,
-    ) -> Result<(), ExaResult> {
-        match target {
-            RegLabel::X => {
-                exa.borrow_mut().reg_x = value;
-                Ok(())
-            }
-            RegLabel::T => {
-                exa.borrow_mut().reg_t = value;
-                Ok(())
-            }
-            RegLabel::F => {
-                if let Some(f_ref) = exa.borrow_mut().reg_f.as_mut() {
-                    f_ref.1.write(value);
-                    Ok(())
-                } else {
-                    Err(ExaResult::Error(RuntimeError::InvalidFRegAccess))
-                }
-            }
-            RegLabel::M => {
-                let mut reg_m = self.reg_m.borrow_mut();
-                if reg_m.is_some() {
-                    Err(ExaResult::Block(Block::Send))
-                } else {
-                    *reg_m = Some(value);
-                    Ok(())
-                }
-            }
-            RegLabel::H(_) => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
+            RegLabel::H(reg) => match self.hw_registers.borrow_mut().get_mut(&reg) {
+                Some(hwr) => hwr.write(value),
+                None => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
+            },
         }
     }
 }
