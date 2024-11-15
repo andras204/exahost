@@ -12,6 +12,7 @@ use vm::{Config as VMConfig, VM};
 pub mod compiler;
 pub mod config;
 pub mod exa;
+pub mod runtime;
 pub mod server;
 pub mod vm;
 
@@ -25,28 +26,28 @@ impl Host {
     pub fn new(host_name: &str, _bind_addr: &str) -> Host {
         println!("Initializing host: {}", host_name);
         let exa_compiler = Compiler::new(CompilerConfig::default());
-        let vm_config: Rc<VMConfig> = VMConfig::default().into();
-        let hostname: Rc<Box<str>> = Rc::new(host_name.into());
+        let vm_config: VMConfig = VMConfig::default();
+        let hostname: Box<str> = host_name.into();
         Host {
             compiler: exa_compiler,
             vm: VM::new(hostname.clone(), vm_config.clone()),
             config: HostConfig {
-                hostname,
+                hostname: hostname.into(),
                 compiler_config: CompilerConfig::extended().into(),
-                vm_config,
+                vm_config: vm_config.into(),
             },
         }
     }
 
-    pub fn init() -> Host {
-        let config = Self::load_config();
-        println!("Initializing host: {}", config.hostname);
-        Host {
-            compiler: Compiler::new((*config.compiler_config).clone()),
-            vm: VM::new(config.hostname.clone(), config.vm_config.clone()),
-            config,
-        }
-    }
+    // pub fn init() -> Host {
+    //     let config = Self::load_config();
+    //     println!("Initializing host: {}", config.hostname);
+    //     Host {
+    //         compiler: Compiler::new((*config.compiler_config).clone()),
+    //         vm: VM::new(config.hostname.clone(), config.vm_config.clone()),
+    //         config,
+    //     }
+    // }
 
     pub fn compile_exa(
         &self,
@@ -61,9 +62,9 @@ impl Host {
         self.vm.add_exa(exa);
     }
 
-    pub fn add_file(&mut self, file: File) {
-        self.vm.add_file(file);
-    }
+    // pub fn add_file(&mut self, file: File) {
+    //     self.vm.add_file(file);
+    // }
 
     pub fn step(&mut self) {
         self.vm.step();
