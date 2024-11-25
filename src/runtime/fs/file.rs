@@ -1,3 +1,5 @@
+use std::{fs, io::BufReader, path::PathBuf};
+
 use bitcode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
@@ -5,7 +7,6 @@ use crate::exa::Register;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Encode, Decode)]
 pub struct File {
-    path: Box<str>,
     content: Vec<Register>,
     ptr: i16,
 }
@@ -34,12 +35,9 @@ impl File {
         self.ptr == self.content.len() as i16
     }
 
-    pub fn new(path: &str) -> Self {
-        Self {
-            path: path.into(),
-            content: Vec::new(),
-            ptr: 0,
-        }
+    pub fn open(path: PathBuf) -> Self {
+        let f = std::fs::File::open(path).unwrap();
+        let reader = BufReader::new(f);
     }
 }
 

@@ -1,8 +1,8 @@
-use std::{collections::HashMap, sync::Mutex};
+use std::collections::HashMap;
 
 type Link = ();
 
 #[derive(Debug)]
 pub struct NetModule {
-    links: Mutex<HashMap<i16, Link>>,
+    links: HashMap<i16, Link>,
 }

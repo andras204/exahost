@@ -3,10 +3,10 @@ use std::collections::HashMap;
 
 use crate::compiler::{Signature, TokenType};
 
-use crate::exa::OpCode;
+use crate::instruction::OpCode;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Config {
+pub struct CompilerConfig {
     pub extra_instructions: bool,
     pub keyword_literals: bool,
     pub full_comparisons: bool,
@@ -14,7 +14,7 @@ pub struct Config {
     pub comment_prefixes: Vec<String>,
 }
 
-impl Default for Config {
+impl Default for CompilerConfig {
     fn default() -> Self {
         Self::custom(
             false,
@@ -29,7 +29,7 @@ impl Default for Config {
     }
 }
 
-impl Config {
+impl CompilerConfig {
     pub fn extended() -> Self {
         Self::custom(
             true,

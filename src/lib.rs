@@ -1,17 +1,17 @@
 use std::{
     io::{Read, Write},
     net::ToSocketAddrs,
-    rc::Rc,
 };
 
-use compiler::{Compiler, Config as CompilerConfig};
-use config::HostConfig;
-use exa::{Exa, File};
-use vm::{Config as VMConfig, VM};
+use compiler::Compiler;
+use config::{CompilerConfig, HostConfig, VMConfig};
+use exa::{Exa, PackedExa};
+use vm::VM;
 
 pub mod compiler;
 pub mod config;
 pub mod exa;
+pub mod instruction;
 pub mod runtime;
 pub mod server;
 pub mod vm;
@@ -53,9 +53,9 @@ impl Host {
         &self,
         name: &str,
         instructions: Vec<&str>,
-    ) -> Result<Exa, Vec<compiler::Error>> {
+    ) -> Result<PackedExa, Vec<compiler::Error>> {
         let instr = self.compiler.compile(&instructions)?;
-        Ok(Exa::new(name, instr))
+        Ok(PackedExa::new(name, instr))
     }
 
     pub fn add_exa(&mut self, exa: Exa) {

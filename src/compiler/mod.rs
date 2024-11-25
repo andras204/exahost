@@ -1,15 +1,12 @@
 use regex::{Match, Regex};
 
-use crate::exa::{Arg, Instruction, OpCode};
+use crate::config::CompilerConfig;
+use crate::instruction::{Arg, Instruction, OpCode};
 use std::{
     collections::HashMap,
     fmt::Display,
     ops::{Deref, DerefMut, Range},
 };
-
-pub use self::config::Config;
-
-mod config;
 
 #[derive(Debug, Clone)]
 pub struct Token {
@@ -95,7 +92,7 @@ pub enum ErrorType {
 }
 
 #[derive(Debug, Clone)]
-struct Signature(pub Vec<Vec<TokenType>>);
+pub struct Signature(pub Vec<Vec<TokenType>>);
 
 impl Signature {
     pub fn one(ttypes: &[TokenType]) -> Self {
@@ -167,7 +164,7 @@ pub struct Compiler {
 }
 
 impl Compiler {
-    pub fn new(config: Config) -> Self {
+    pub fn new(config: CompilerConfig) -> Self {
         Self {
             instruction_signatures: config.generate_signatures(),
             comparisons: config.generate_comparisons(),
@@ -609,7 +606,7 @@ impl Compiler {
 
 impl Default for Compiler {
     fn default() -> Self {
-        Self::new(Config::default())
+        Self::new(CompilerConfig::default())
     }
 }
 

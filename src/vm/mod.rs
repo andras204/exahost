@@ -1,75 +1,17 @@
-use std::sync::Arc;
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::collections::HashMap;
 
-use rand::{rngs::ThreadRng, Rng};
-
-pub use self::config::Config;
-pub use self::hw_register::HWRegister;
-use crate::exa::{Arg, Comp, Exa, OpCode, RegLabel, Register};
-use crate::exa::{ExecResult, File};
-pub use hw_register::DebugOutput;
-
-mod config;
-mod hw_register;
-
-#[derive(Debug, Clone, Copy)]
-enum ExaResult {
-    SideEffect(SideEffect),
-    Block(Block),
-    Error(RuntimeError),
-}
-
-impl ExaResult {
-    pub fn is_block(&self) -> bool {
-        matches!(self, Self::Block(_))
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-enum SideEffect {
-    Repl(u8),
-    Link(i16),
-    Kill,
-    Halt,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum Block {
-    Send,
-    Recv,
-    Jump,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum RuntimeError {
-    OutOfInstructions,
-    FileNotFound,
-    NoFileHeld,
-    AlreadyHoldingFile,
-    InvalidHWRegAccess,
-    InvalidFRegAccess,
-    InvalidArgument,
-    NumericValueRequired,
-}
+use crate::config::VMConfig as Config;
+use crate::exa::Exa;
+use crate::exa::{Block, ExaStatus, SideEffect};
 
 pub struct VM {
     exas: HashMap<usize, Exa>,
-
-    config: Config,
 }
 
 impl VM {
     pub fn new(hostname: Box<str>, config: Config) -> Self {
-        let mut hw_registers: HashMap<Box<str>, Box<dyn HWRegister>> = HashMap::new();
-        hw_registers.insert(
-            "#DBG".into(),
-            Box::new(hw_register::DebugOutput {
-                prefix: "host::debug>".into(),
-            }),
-        );
         Self {
             exas: HashMap::with_capacity(config.max_exas),
-            config,
         }
     }
 
@@ -102,8 +44,8 @@ impl VM {
     //     files.insert(max, f);
     // }
 
-    fn exec_all(&mut self) -> Vec<(usize, ExecResult)> {
-        let results: Vec<(usize, ExecResult)> = self
+    fn exec_all(&mut self) -> Vec<(usize, ExaStatus)> {
+        let results: Vec<(usize, ExaStatus)> = self
             .exas
             .iter_mut()
             .filter_map(|(k, exa)| {
@@ -117,13 +59,18 @@ impl VM {
         results
     }
 
-    fn apply_side_effects(&mut self, results: Vec<(usize, ExecResult)>) {
+    fn apply_side_effects(&mut self, results: Vec<(usize, ExaStatus)>) {
         for (k, res) in results {
             match res {
-                ExaResult::SideEffect(se) => match se {
+                ExaStatus::Block(b) => match b {
+                    Block::Recv => {
+                        self.exas.get_mut(&k).unwrap().exec();
+                    }
+                    _ => (),
+                },
+                ExaStatus::SideEffect(se) => match se {
                     SideEffect::Repl(j) => {
-                        let (key, val) = self.generate_clone(&k, j);
-                        self.exas.insert(key, val);
+                        self.generate_clone(&k, j);
                     }
                     SideEffect::Kill => {
                         for k2 in self.exas.keys() {
@@ -136,11 +83,8 @@ impl VM {
                     SideEffect::Link(_) => {
                         self.exas.remove(&k);
                     }
-                    SideEffect::Halt => {
-                        self.exas.remove(&k);
-                    }
                 },
-                ExaResult::Error(e) => {
+                ExaStatus::Error(e) => {
                     let name = self.exas.remove(&k).unwrap().name.clone();
                     println!("{}| {:?}", name, e);
                 }
@@ -148,12 +92,12 @@ impl VM {
         }
     }
 
-    fn generate_clone(&mut self, k: &usize, j: u8) -> (usize, Exa) {
+    fn generate_clone(&mut self, k: &usize, j: u8) {
         let mut clone = self.exas.get(k).unwrap().clone();
-        clone.instr_ptr = j + 1;
+        clone.instr_ptr = j;
         clone.name.push_str(&format!(":{}", clone.repl_counter));
         clone.repl_counter = 0;
-        (self.exas.keys().max().unwrap() + 1, clone)
+        self.exas.insert(self.exas.keys().max().unwrap() + 1, clone);
     }
 
     // fn exec(&mut self, index: usize) -> Result<(), ExaResult> {
@@ -234,11 +178,11 @@ impl Default for VM {
 // -----------------------------------------------------------
 
 impl VM {
-    fn copy(&self, exa: &mut Exa, (value, target): (Arg, Arg)) -> Result<(), ExaResult> {
-        let val = self.get_value(exa, value)?;
-        self.put_value(exa, val, target.reg_label().unwrap())?;
-        Ok(())
-    }
+    // fn copy(&self, exa: &mut Exa, (value, target): (Arg, Arg)) -> Result<(), ExaResult> {
+    //     let val = self.get_value(exa, value)?;
+    //     self.put_value(exa, val, target.reg_label().unwrap())?;
+    //     Ok(())
+    // }
 
     // fn void(&self, exa: &RefCell<Exa>, target: Arg) -> Result<(), ExaResult> {
     //     match target.reg_label().unwrap() {
@@ -541,82 +485,82 @@ impl VM {
     //     Ok(())
     // }
 
-    fn get_number(&self, exa: &mut Exa, target: Arg) -> Result<i16, ExaResult> {
-        match self.get_value(exa, target)? {
-            Register::Number(n) => Ok(n),
-            Register::Keyword(_) => Err(ExaResult::Error(RuntimeError::NumericValueRequired)),
-        }
-    }
+    // fn get_number(&self, exa: &mut Exa, target: Arg) -> Result<i16, ExaResult> {
+    //     match self.get_value(exa, target)? {
+    //         Register::Number(n) => Ok(n),
+    //         Register::Keyword(_) => Err(ExaResult::Error(RuntimeError::NumericValueRequired)),
+    //     }
+    // }
 
-    fn get_value(&self, exa: &mut Exa, target: Arg) -> Result<Register, ExaResult> {
-        match target {
-            Arg::Number(n) => Ok(Register::Number(n)),
-            Arg::Keyword(k) => Ok(Register::Keyword(k)),
-            Arg::RegLabel(r) => match r {
-                RegLabel::X => Ok(exa.reg_x.clone()),
-                RegLabel::T => Ok(exa.reg_t.clone()),
-                RegLabel::F => {
-                    if let Some(f_ref) = exa.reg_f.as_mut() {
-                        match f_ref.1.read() {
-                            Some(r) => Ok(r),
-                            None => Err(ExaResult::Error(RuntimeError::InvalidFRegAccess)),
-                        }
-                    } else {
-                        Err(ExaResult::Error(RuntimeError::NoFileHeld))
-                    }
-                }
-                // RegLabel::M => match self.reg_m.take() {
-                //     Some(r) => Ok(r),
-                //     None => Err(ExaResult::Block(Block::Recv)),
-                // },
-                // RegLabel::H(reg) => match self.hw_registers.borrow().get(&reg) {
-                //     Some(hwr) => hwr.read(),
-                //     None => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
-                // },
-                RegLabel::H(_) => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
-                _ => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
-            },
-            _ => Err(ExaResult::Error(RuntimeError::InvalidArgument)),
-        }
-    }
+    // fn get_value(&self, exa: &mut Exa, target: Arg) -> Result<Register, ExaResult> {
+    //     match target {
+    //         Arg::Number(n) => Ok(Register::Number(n)),
+    //         Arg::Keyword(k) => Ok(Register::Keyword(k)),
+    //         Arg::RegLabel(r) => match r {
+    //             RegLabel::X => Ok(exa.reg_x.clone()),
+    //             RegLabel::T => Ok(exa.reg_t.clone()),
+    //             RegLabel::F => {
+    //                 if let Some(f_ref) = exa.reg_f.as_mut() {
+    //                     match f_ref.1.read() {
+    //                         Some(r) => Ok(r),
+    //                         None => Err(ExaResult::Error(RuntimeError::InvalidFRegAccess)),
+    //                     }
+    //                 } else {
+    //                     Err(ExaResult::Error(RuntimeError::NoFileHeld))
+    //                 }
+    //             }
+    //             // RegLabel::M => match self.reg_m.take() {
+    //             //     Some(r) => Ok(r),
+    //             //     None => Err(ExaResult::Block(Block::Recv)),
+    //             // },
+    //             // RegLabel::H(reg) => match self.hw_registers.borrow().get(&reg) {
+    //             //     Some(hwr) => hwr.read(),
+    //             //     None => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
+    //             // },
+    //             RegLabel::H(_) => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
+    //             _ => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
+    //         },
+    //         _ => Err(ExaResult::Error(RuntimeError::InvalidArgument)),
+    //     }
+    // }
 
-    fn put_value(&self, exa: &mut Exa, value: Register, target: RegLabel) -> Result<(), ExaResult> {
-        let value = match value {
-            Register::Number(n) => Register::Number(n.clamp(-9999, 9999)),
-            Register::Keyword(w) => Register::Keyword(w),
-        };
-        match target {
-            RegLabel::X => {
-                exa.reg_x = value;
-                Ok(())
-            }
-            RegLabel::T => {
-                exa.reg_t = value;
-                Ok(())
-            }
-            RegLabel::F => {
-                if let Some(f_ref) = exa.reg_f.as_mut() {
-                    f_ref.1.write(value);
-                    Ok(())
-                } else {
-                    Err(ExaResult::Error(RuntimeError::InvalidFRegAccess))
-                }
-            }
-            // RegLabel::M => {
-            //     let mut reg_m = self.reg_m;
-            //     if reg_m.is_some() {
-            //         Err(ExaResult::Block(Block::Send))
-            //     } else {
-            //         *reg_m = Some(value);
-            //         Ok(())
-            //     }
-            // }
-            RegLabel::M => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
-            // RegLabel::H(reg) => match self.hw_registers.borrow_mut().get_mut(&reg) {
-            //     Some(hwr) => hwr.write(value),
-            //     None => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
-            // },
-            RegLabel::H(_) => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
-        }
-    }
+    // fn put_value(&self, exa: &mut Exa, value: Register, target: RegLabel) -> Result<(), ExaResult> {
+    //     let value = match value {
+    //         Register::Number(n) => Register::Number(n.clamp(-9999, 9999)),
+    //         Register::Keyword(w) => Register::Keyword(w),
+    //     };
+    //     match target {
+    //         RegLabel::X => {
+    //             exa.reg_x = value;
+    //             Ok(())
+    //         }
+    //         RegLabel::T => {
+    //             exa.reg_t = value;
+    //             Ok(())
+    //         }
+    //         RegLabel::F => {
+    //             if let Some(f_ref) = exa.reg_f.as_mut() {
+    //                 f_ref.1.write(value);
+    //                 Ok(())
+    //             } else {
+    //                 Err(ExaResult::Error(RuntimeError::InvalidFRegAccess))
+    //             }
+    //         }
+    //         // RegLabel::M => {
+    //         //     let mut reg_m = self.reg_m;
+    //         //     if reg_m.is_some() {
+    //         //         Err(ExaResult::Block(Block::Send))
+    //         //     } else {
+    //         //         *reg_m = Some(value);
+    //         //         Ok(())
+    //         //     }
+    //         // }
+    //         RegLabel::M => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
+    //         // RegLabel::H(reg) => match self.hw_registers.borrow_mut().get_mut(&reg) {
+    //         //     Some(hwr) => hwr.write(value),
+    //         //     None => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
+    //         // },
+    //         RegLabel::H(_) => Err(ExaResult::Error(RuntimeError::InvalidHWRegAccess)),
+    //     }
+    // }
 }
