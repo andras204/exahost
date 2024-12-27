@@ -25,7 +25,7 @@ pub struct Host {
 impl Host {
     pub fn new(host_name: &str, _bind_addr: &str) -> Host {
         println!("Initializing host: {}", host_name);
-        let exa_compiler = Compiler::new(CompilerConfig::default());
+        let exa_compiler = Compiler::new(CompilerConfig::extended());
         let vm_config: VMConfig = VMConfig::default();
         let hostname: Box<str> = host_name.into();
         Host {

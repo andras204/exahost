@@ -12,7 +12,7 @@ pub struct PackedExa {
     pub name: String,
     pub instr_list: Box<[Instruction]>,
     pub instr_ptr: u8,
-    pub repl_counter: usize,
+    pub repl_counter: u16,
     pub reg_x: Register,
     pub reg_t: Register,
     pub reg_f: Option<(i16, File)>,

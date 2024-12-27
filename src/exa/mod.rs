@@ -15,7 +15,7 @@ pub struct Exa {
     pub name: String,
     pub instr_list: Box<[Instruction]>,
     pub instr_ptr: u8,
-    pub repl_counter: usize,
+    pub repl_counter: u16,
     pub reg_x: Register,
     pub reg_t: Register,
     pub reg_f: Option<(i16, File)>,
@@ -23,19 +23,6 @@ pub struct Exa {
 }
 
 impl Exa {
-    // pub fn new(name: &str, instr_list: Box<[Instruction]>) -> Self {
-    //     Self {
-    //         name: name.to_string(),
-    //         instr_list,
-    //         instr_ptr: 0,
-    //         repl_counter: 0,
-    //         reg_x: Register::Number(0),
-    //         reg_t: Register::Number(0),
-    //         reg_f: None,
-    //         harness: RuntimeHarness::default().into(),
-    //     }
-    // }
-
     pub fn pack(self) -> PackedExa {
         PackedExa {
             name: self.name,
@@ -48,9 +35,9 @@ impl Exa {
         }
     }
 
-    pub fn exec(&mut self) -> Option<ExaStatus> {
+    pub fn exec(&mut self) -> Result<(), ExaStatus> {
         if self.instr_ptr as usize == self.instr_list.len() {
-            return Some(ExaStatus::Error(Error::OutOfInstructions));
+            return Err(ExaStatus::Error(Error::OutOfInstructions));
         }
 
         let instr = self.instr_list[self.instr_ptr as usize].clone();
@@ -86,13 +73,11 @@ impl Exa {
             OpCode::Noop => Ok(()),
         };
 
-        match status {
-            Ok(_) => {
-                self.instr_ptr += 1;
-                None
-            }
-            Err(res) => Some(res),
+        if status.is_err_and(|e| e.is_side_effect()) || status.is_ok() {
+            self.instr_ptr += 1;
         }
+
+        status
     }
 
     fn copy(&mut self, (value, target): (Arg, Arg)) -> Result<(), ExaStatus> {

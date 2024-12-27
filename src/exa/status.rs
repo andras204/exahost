@@ -5,6 +5,15 @@ pub enum ExaStatus {
     Error(Error),
 }
 
+impl ExaStatus {
+    pub fn is_side_effect(&self) -> bool {
+        match self {
+            Self::SideEffect(_) => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Block {
     Send,

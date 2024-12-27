@@ -1,18 +1,24 @@
-use exahost::runtime::fs::File;
 use exahost::Host;
 
 fn main() {
     let mut rhizome = Host::default();
     // rhizome.save_config().unwrap();
     let test = vec![
-        "@rep 5",
-        "addi 32000 x t",
-        "@end",
-        "",
-        "",
-        "",
-        "",
-        "copy 8008 #prnt",
+        // "@rep 5",
+        // "addi 32000 x t",
+        // "@end",
+        // "",
+        // "",
+        // "",
+        // "",
+        // "copy 8008 #prnt",
+        "mark asd",
+        "copy 'before repl' #prnt",
+        "repl asdw",
+        "jump asd",
+        "halt",
+        "mark asdw",
+        "copy 'before repl' #prnt",
     ];
 
     // let test = vec![
@@ -90,10 +96,10 @@ fn main() {
     // rhizome.add_exa(test);
 
     let xa = rhizome.compile_exa("XA", test).unwrap();
-    dbg!(&xa);
+    // dbg!(&xa);
     rhizome.add_exa(xa);
 
-    for _ in 0..70 {
+    for _ in 0..10 {
         rhizome.step();
     }
 }
