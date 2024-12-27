@@ -1,4 +1,7 @@
-use std::{fs, io::BufReader, path::PathBuf};
+use std::{
+    io::{BufReader, Read},
+    path::Path,
+};
 
 use bitcode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
@@ -19,7 +22,7 @@ impl File {
     }
 
     pub fn write(&mut self, value: Register) {
-        if self.ptr >= self.content.len() as i16 {
+        if self.ptr as usize >= self.content.len() {
             self.content.push(value);
         } else {
             self.content[self.ptr as usize] = value;
@@ -32,25 +35,34 @@ impl File {
     }
 
     pub fn is_eof(&self) -> bool {
-        self.ptr == self.content.len() as i16
+        self.ptr as usize == self.content.len()
     }
 
-    pub fn open(path: PathBuf) -> Self {
+    pub fn open(path: &impl AsRef<Path>) -> Result<Self, std::io::Error> {
         let f = std::fs::File::open(path).unwrap();
-        let reader = BufReader::new(f);
+        let mut reader = BufReader::new(f);
+        let mut buf = String::new();
+        reader.read_to_string(&mut buf)?;
+        Ok(Self::from(
+            buf.split_whitespace()
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<&str>>(),
+        ))
     }
 }
 
 impl Default for File {
     fn default() -> Self {
-        Self::new("./hosts/swap")
+        Self {
+            content: Vec::new(),
+            ptr: 0,
+        }
     }
 }
 
 impl From<Vec<&str>> for File {
     fn from(value: Vec<&str>) -> Self {
         Self {
-            path: "./hosts/swap".into(),
             content: value
                 .into_iter()
                 .map(|s| match s.parse::<i16>() {

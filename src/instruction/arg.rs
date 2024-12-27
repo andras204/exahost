@@ -3,6 +3,8 @@ use std::{fmt::Display, str::FromStr};
 use bitcode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
+use crate::exa::{status, ExaStatus};
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Encode, Decode)]
 pub enum Arg {
     RegLabel(RegLabel),
@@ -13,31 +15,31 @@ pub enum Arg {
 }
 
 impl Arg {
-    pub fn reg_label(&self) -> Result<RegLabel, &str> {
+    pub fn reg_label(&self) -> Result<RegLabel, ExaStatus> {
         match self {
             Self::RegLabel(r) => Ok(r.clone()),
-            _ => Err("arg is not RegisterLabel"),
+            _ => Err(ExaStatus::Error(status::Error::InvalidArgument)),
         }
     }
 
-    pub fn number(&self) -> Result<i16, &str> {
+    pub fn number(&self) -> Result<i16, ExaStatus> {
         match self {
             Self::Number(n) => Ok(*n),
-            _ => Err("arg is not Number"),
+            _ => Err(ExaStatus::Error(status::Error::InvalidArgument)),
         }
     }
 
-    pub fn comp(&self) -> Result<Comp, &str> {
+    pub fn comp(&self) -> Result<Comp, ExaStatus> {
         match self {
             Self::Comp(c) => Ok(*c),
-            _ => Err("arg is not Comparison"),
+            _ => Err(ExaStatus::Error(status::Error::InvalidArgument)),
         }
     }
 
-    pub fn jump_index(&self) -> Result<u8, &str> {
+    pub fn jump_index(&self) -> Result<u8, ExaStatus> {
         match self {
             Self::JumpIndex(j) => Ok(*j),
-            _ => Err("arg is not JumpIndex"),
+            _ => Err(ExaStatus::Error(status::Error::InvalidArgument)),
         }
     }
 
@@ -52,11 +54,7 @@ impl Arg {
 impl Display for Arg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Comp(c) => write!(f, "{}", c),
-            Self::Number(n) => write!(f, "{}", n),
-            Self::Keyword(w) => write!(f, "{}", w),
-            Self::RegLabel(r) => write!(f, "{}", r),
-            Self::JumpIndex(l) => write!(f, "{}", l),
+            a => write!(f, "{}", a),
         }
     }
 }
@@ -81,7 +79,7 @@ impl FromStr for RegLabel {
             _ => (),
         }
         if s.starts_with('#') {
-            Ok(Self::H(s.into()))
+            Ok(Self::H(s.to_uppercase().into()))
         } else {
             Err(format!("cannot parse '{}' as RegisterLabel", s))
         }

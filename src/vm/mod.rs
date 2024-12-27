@@ -1,17 +1,20 @@
 use std::collections::HashMap;
 
 use crate::config::VMConfig as Config;
-use crate::exa::Exa;
 use crate::exa::{Block, ExaStatus, SideEffect};
+use crate::exa::{Exa, PackedExa};
+use crate::runtime::RuntimeHarness;
 
 pub struct VM {
     exas: HashMap<usize, Exa>,
+    runtime: RuntimeHarness,
 }
 
 impl VM {
-    pub fn new(hostname: Box<str>, config: Config) -> Self {
+    pub fn new(hostname: &str, config: Config) -> Self {
         Self {
             exas: HashMap::with_capacity(config.max_exas),
+            runtime: RuntimeHarness::new(hostname),
         }
     }
 
@@ -23,13 +26,13 @@ impl VM {
         self.apply_side_effects(results);
     }
 
-    pub fn add_exa(&mut self, exa: Exa) {
+    pub fn add_exa(&mut self, exa: PackedExa) {
         self.exas.insert(
             match self.exas.keys().max() {
                 Some(n) => n + 1,
                 None => 0,
             },
-            exa,
+            exa.hydrate(self.runtime.clone()),
         );
     }
 

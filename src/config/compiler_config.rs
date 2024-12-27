@@ -96,7 +96,6 @@ impl CompilerConfig {
             (OpCode::Modi, Signature::math()),
             (OpCode::Swiz, Signature::math()),
             (OpCode::Rand, Signature::math()),
-            (OpCode::Mode, Signature::empty()),
             (OpCode::Test, Signature::three(&vari, &c, &vari)),
             (OpCode::TestEof, Signature::empty()),
             (OpCode::TestMrd, Signature::empty()),
@@ -118,9 +117,9 @@ impl CompilerConfig {
             (OpCode::Kill, Signature::empty()),
         ]);
 
-        if self.extra_instructions {
-            sigs.insert(OpCode::Prnt, Signature::one(&vari));
-        }
+        // if self.extra_instructions {
+        //     sigs.insert(OpCode::Prnt, Signature::one(&vari));
+        // }
 
         sigs
     }

@@ -5,7 +5,7 @@ use std::{
 
 use compiler::Compiler;
 use config::{CompilerConfig, HostConfig, VMConfig};
-use exa::{Exa, PackedExa};
+use exa::PackedExa;
 use vm::VM;
 
 pub mod compiler;
@@ -30,7 +30,7 @@ impl Host {
         let hostname: Box<str> = host_name.into();
         Host {
             compiler: exa_compiler,
-            vm: VM::new(hostname.clone(), vm_config.clone()),
+            vm: VM::new(&hostname, vm_config.clone()),
             config: HostConfig {
                 hostname: hostname.into(),
                 compiler_config: CompilerConfig::extended().into(),
@@ -58,7 +58,7 @@ impl Host {
         Ok(PackedExa::new(name, instr))
     }
 
-    pub fn add_exa(&mut self, exa: Exa) {
+    pub fn add_exa(&mut self, exa: PackedExa) {
         self.vm.add_exa(exa);
     }
 

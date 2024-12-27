@@ -27,6 +27,9 @@ pub enum Error {
     NoFileHeld,
     AlreadyHoldingFile,
     InvalidFileAccess,
+    StorageFull,
     InvalidArgument,
     NumericValueRequired,
+    InvalidHWRegisterAccess,
+    UnknownInstruction,
 }

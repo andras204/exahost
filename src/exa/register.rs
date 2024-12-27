@@ -9,9 +9,13 @@ pub enum Register {
     Keyword(Box<str>),
 }
 
-impl Default for Register {
-    fn default() -> Self {
+impl Register {
+    pub fn zero() -> Self {
         Self::Number(0)
+    }
+
+    pub fn empty() -> Self {
+        Self::Keyword("".into())
     }
 }
 

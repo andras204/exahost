@@ -12,11 +12,7 @@ fn main() {
         "",
         "",
         "",
-        "mode",
-        "mode",
-        "mode",
-        "mode",
-        "copy 8008 #DBG",
+        "copy 8008 #prnt",
     ];
 
     // let test = vec![
@@ -94,6 +90,7 @@ fn main() {
     // rhizome.add_exa(test);
 
     let xa = rhizome.compile_exa("XA", test).unwrap();
+    dbg!(&xa);
     rhizome.add_exa(xa);
 
     for _ in 0..70 {

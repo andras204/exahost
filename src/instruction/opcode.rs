@@ -56,9 +56,6 @@ pub enum OpCode {
     /// TODO: docs
     Swiz,
 
-    /// doesn't work
-    Mode,
-
     /// `TEST val1: R/N comp: C val2: R/N`
     ///
     /// performs `val1 comp val2`, and puts the result in `T`
@@ -185,10 +182,6 @@ pub enum OpCode {
     ///
     /// does nothing for 1 cycle
     Noop,
-    /// `INST ...`
-    ///
-    /// TODO: docs
-    Prnt,
 }
 
 impl FromStr for OpCode {
@@ -203,7 +196,6 @@ impl FromStr for OpCode {
             "divi" => Ok(Self::Divi),
             "modi" => Ok(Self::Modi),
             "swiz" => Ok(Self::Swiz),
-            "mode" => Ok(Self::Mode),
             "test" => Ok(Self::Test),
             "test mrd" => Ok(Self::TestMrd),
             "test eof" => Ok(Self::TestEof),
@@ -223,7 +215,6 @@ impl FromStr for OpCode {
             "rand" => Ok(Self::Rand),
             "host" => Ok(Self::Host),
             "noop" => Ok(Self::Noop),
-            "prnt" => Ok(Self::Prnt),
             _ => Err(format!("could not parse '{}' as OpCode", s)),
         }
     }
@@ -240,7 +231,6 @@ impl Display for OpCode {
             Self::Divi => write!(f, "DIVI"),
             Self::Modi => write!(f, "MODI"),
             Self::Swiz => write!(f, "SWIZ"),
-            Self::Mode => write!(f, "MODE"),
             Self::Test => write!(f, "TEST"),
             Self::TestMrd => write!(f, "TEST MRD"),
             Self::TestEof => write!(f, "TEST EOF"),
@@ -261,7 +251,6 @@ impl Display for OpCode {
             Self::Rand => write!(f, "RAND"),
             Self::Host => write!(f, "HOST"),
             Self::Noop => write!(f, "NOOP"),
-            Self::Prnt => write!(f, "PRNT"),
         }
     }
 }

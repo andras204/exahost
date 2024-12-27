@@ -25,8 +25,8 @@ impl PackedExa {
             instr_list,
             instr_ptr: 0,
             repl_counter: 0,
-            reg_x: Register::default(),
-            reg_t: Register::default(),
+            reg_x: Register::zero(),
+            reg_t: Register::zero(),
             reg_f: None,
         }
     }
