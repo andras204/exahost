@@ -40,6 +40,7 @@ impl PackedExa {
             reg_x: self.reg_x,
             reg_t: self.reg_t,
             reg_f: self.reg_f,
+            reg_m: harness.get_default_reg_m(),
             harness,
         }
     }

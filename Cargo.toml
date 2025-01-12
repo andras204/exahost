@@ -14,3 +14,4 @@ toml = { version = "0.8.12", features = ["preserve_order"] }
 regex = "1.10.4"
 bitcode = { version = "0.6.0" }
 log = "0.4.22"
+simplelog = "0.12.2"

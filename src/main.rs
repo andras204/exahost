@@ -1,6 +1,15 @@
-use exahost::Host;
+use exahost::{server::Server, Host};
+use simplelog::{Config, TermLogger};
 
 fn main() {
+    TermLogger::init(
+        log::LevelFilter::Trace,
+        Config::default(),
+        simplelog::TerminalMode::Stdout,
+        simplelog::ColorChoice::Auto,
+    )
+    .unwrap();
+
     let mut rhizome = Host::default();
     // rhizome.save_config().unwrap();
     let test = vec![
@@ -98,6 +107,10 @@ fn main() {
     let xa = rhizome.compile_exa("XA", test).unwrap();
     // dbg!(&xa);
     rhizome.add_exa(xa);
+
+    let mut server = Server::new();
+    server.start("0.0.0.0:6800");
+    server.wait();
 
     for _ in 0..10 {
         rhizome.step();

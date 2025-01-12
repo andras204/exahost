@@ -1,20 +1,19 @@
 use std::collections::HashMap;
 
-use crate::config::VMConfig as Config;
 use crate::exa::{Block, ExaStatus, SideEffect};
 use crate::exa::{Exa, PackedExa};
-use crate::runtime::Runtime;
+use crate::runtime::RuntimeHarness;
 
 pub struct VM {
     exas: HashMap<usize, Exa>,
-    runtime: Runtime,
+    rth: RuntimeHarness,
 }
 
 impl VM {
-    pub fn new(hostname: &str, config: Config) -> Self {
+    pub fn new(rth: RuntimeHarness) -> Self {
         Self {
-            exas: HashMap::with_capacity(config.max_exas),
-            runtime: Runtime::new(hostname),
+            exas: HashMap::new(),
+            rth,
         }
     }
 
@@ -32,7 +31,7 @@ impl VM {
                 Some(n) => n + 1,
                 None => 0,
             },
-            exa.hydrate(self.runtime.get_harness()),
+            exa.hydrate(self.rth.clone()),
         );
     }
 
@@ -92,11 +91,5 @@ impl VM {
         clone.repl_counter = 0;
 
         self.exas.insert(self.exas.keys().max().unwrap() + 1, clone);
-    }
-}
-
-impl Default for VM {
-    fn default() -> Self {
-        Self::new("Rhizome".into(), Config::default())
     }
 }

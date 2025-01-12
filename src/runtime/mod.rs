@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    ops::Deref,
+    sync::{Arc, Mutex, Weak},
 };
 
 use fs::FileHandle;
@@ -17,14 +18,82 @@ pub mod hw_register;
 pub mod ipc;
 pub mod net;
 
+#[derive(Debug)]
+pub struct SharedRT {
+    rt: Arc<Runtime>,
+}
+
+impl SharedRT {
+    pub fn generate_harness(&self) -> RuntimeHarness {
+        RuntimeHarness {
+            rt: Arc::downgrade(&self.rt),
+        }
+    }
+}
+
+impl Deref for SharedRT {
+    type Target = Runtime;
+
+    fn deref(&self) -> &Self::Target {
+        &self.rt
+    }
+}
+
 #[derive(Debug, Clone)]
+pub struct RuntimeHarness {
+    rt: Weak<Runtime>,
+}
+
+impl RuntimeHarness {
+    pub fn hostname(&self) -> Register {
+        self.rt.upgrade().unwrap().hostname()
+    }
+
+    pub fn rand(&self, a: i16, b: i16) -> Register {
+        self.rt.upgrade().unwrap().rand(a, b)
+    }
+
+    pub fn make_file(&self) -> Option<FileHandle> {
+        self.rt.upgrade().unwrap().make_file()
+    }
+
+    pub fn grab_file(&self, id: i16) -> Option<FileHandle> {
+        self.rt.upgrade().unwrap().grab_file(id)
+    }
+
+    pub fn return_file(&self, fh: FileHandle) {
+        self.rt.upgrade().unwrap().return_file(fh)
+    }
+
+    pub fn wipe_file(&self, id: i16) {
+        self.rt.upgrade().unwrap().wipe_file(id)
+    }
+
+    pub fn dial(&self, channel: i16) -> ChannelHandle {
+        self.rt.upgrade().unwrap().dial(channel)
+    }
+
+    pub fn get_default_reg_m(&self) -> ChannelHandle {
+        self.rt.upgrade().unwrap().get_default_reg_m()
+    }
+
+    pub fn hw_read(&self, exa: &Exa, label: Box<str>) -> Result<Register, ExaStatus> {
+        self.rt.upgrade().unwrap().hw_read(exa, label)
+    }
+
+    pub fn hw_write(&self, exa: &Exa, label: Box<str>, value: Register) -> Result<(), ExaStatus> {
+        self.rt.upgrade().unwrap().hw_write(exa, label, value)
+    }
+}
+
+#[derive(Debug)]
 pub struct Runtime {
     hostname: Box<str>,
-    rng: Arc<Mutex<ThreadRng>>,
+    rng: Mutex<ThreadRng>,
 
-    ipc: Arc<Mutex<IpcModule>>,
-    fs: Arc<Mutex<FsModule>>,
-    hw: Arc<Mutex<HashMap<Box<str>, Box<dyn HardwareRegister>>>>,
+    ipc: Mutex<IpcModule>,
+    fs: Mutex<FsModule>,
+    hw: Mutex<HashMap<Box<str>, Box<dyn HardwareRegister>>>,
 }
 
 impl Runtime {
@@ -40,37 +109,17 @@ impl Runtime {
 
         Self {
             hostname: hostname.into(),
-            rng: Arc::new(Mutex::new(thread_rng())),
-            ipc: Arc::new(Mutex::new(ipc)),
-            fs: Arc::new(Mutex::new(FsModule::new("./files"))),
-            hw: Arc::new(Mutex::new(hw_map)),
+            rng: Mutex::new(thread_rng()),
+            ipc: Mutex::new(ipc),
+            fs: Mutex::new(FsModule::new("./files")),
+            hw: Mutex::new(hw_map),
         }
     }
 
-    pub fn get_harness(&self) -> RuntimeHarness {
-        RuntimeHarness {
-            hostname: self.hostname.clone(),
-            reg_m: self.ipc.lock().unwrap().get_default_channel(),
-            rng: self.rng.clone(),
-            ipc: self.ipc.clone(),
-            fs: self.fs.clone(),
-            hw: self.hw.clone(),
-        }
+    pub fn make_shared(self) -> SharedRT {
+        SharedRT { rt: Arc::new(self) }
     }
-}
 
-#[derive(Debug, Clone)]
-pub struct RuntimeHarness {
-    hostname: Box<str>,
-    reg_m: ChannelHandle,
-    rng: Arc<Mutex<ThreadRng>>,
-
-    ipc: Arc<Mutex<IpcModule>>,
-    fs: Arc<Mutex<FsModule>>,
-    hw: Arc<Mutex<HashMap<Box<str>, Box<dyn HardwareRegister>>>>,
-}
-
-impl RuntimeHarness {
     pub fn hostname(&self) -> Register {
         Register::Keyword(self.hostname.clone())
     }
@@ -96,33 +145,12 @@ impl RuntimeHarness {
         self.fs.lock().unwrap().wipe_file(id);
     }
 
-    pub fn send(&self, value: Register) -> Result<(), ExaStatus> {
-        let mut reg_m = self.reg_m.1.lock().unwrap();
-        if reg_m.is_none() {
-            *reg_m = Some(value);
-            Ok(())
-        } else {
-            Err(ExaStatus::Block(crate::exa::Block::Send))
-        }
+    pub fn dial(&self, channel: i16) -> ChannelHandle {
+        self.ipc.lock().unwrap().dial(channel)
     }
 
-    pub fn recv(&self) -> Result<Register, ExaStatus> {
-        match self.reg_m.1.lock().unwrap().take() {
-            Some(r) => Ok(r),
-            None => Err(ExaStatus::Block(crate::exa::Block::Recv)),
-        }
-    }
-
-    pub fn is_m_read_non_block(&self) -> bool {
-        self.reg_m.1.lock().unwrap().is_some()
-    }
-
-    pub fn dial(&mut self, channel: i16) {
-        self.reg_m = self.ipc.lock().unwrap().dial(channel);
-    }
-
-    pub fn channel_id(&self) -> Register {
-        Register::Number(self.reg_m.0)
+    pub fn get_default_reg_m(&self) -> ChannelHandle {
+        self.ipc.lock().unwrap().get_default_channel()
     }
 
     pub fn hw_read(&self, exa: &Exa, label: Box<str>) -> Result<Register, ExaStatus> {

@@ -7,7 +7,8 @@ pub use register::Register;
 pub use status::{Block, Error, ExaStatus, SideEffect};
 
 use crate::instruction::{Arg, Comp, Instruction, OpCode, RegLabel};
-use crate::runtime::fs::File;
+use crate::runtime::fs::FileHandle;
+use crate::runtime::ipc::ChannelHandle;
 use crate::runtime::RuntimeHarness;
 
 #[derive(Clone)]
@@ -18,7 +19,8 @@ pub struct Exa {
     pub repl_counter: u16,
     pub reg_x: Register,
     pub reg_t: Register,
-    pub reg_f: Option<(i16, File)>,
+    pub reg_f: Option<FileHandle>,
+    pub reg_m: ChannelHandle,
     pub harness: RuntimeHarness,
 }
 
@@ -180,7 +182,7 @@ impl Exa {
     fn test_mrd(&mut self) -> Result<(), ExaStatus> {
         self.set_value(
             RegLabel::T,
-            Register::Number(self.harness.is_m_read_non_block() as i16),
+            Register::Number(self.is_m_read_non_block() as i16),
         )
     }
 
@@ -308,7 +310,7 @@ impl Exa {
                         Err(ExaStatus::Error(Error::NoFileHeld))
                     }
                 }
-                RegLabel::M => self.harness.recv(),
+                RegLabel::M => self.recv(),
                 RegLabel::H(h) => self.harness.hw_read(&self, h),
             },
             _ => Err(ExaStatus::Error(status::Error::InvalidArgument)),
@@ -340,8 +342,33 @@ impl Exa {
                     Err(ExaStatus::Error(Error::NoFileHeld))
                 }
             }
-            RegLabel::M => self.harness.send(value),
+            RegLabel::M => self.send(value),
             RegLabel::H(h) => self.harness.hw_write(&self, h, value),
         }
+    }
+
+    pub fn send(&self, value: Register) -> Result<(), ExaStatus> {
+        let mut reg_m = self.reg_m.1.lock().unwrap();
+        if reg_m.is_none() {
+            *reg_m = Some(value);
+            Ok(())
+        } else {
+            Err(ExaStatus::Block(crate::exa::Block::Send))
+        }
+    }
+
+    pub fn recv(&self) -> Result<Register, ExaStatus> {
+        match self.reg_m.1.lock().unwrap().take() {
+            Some(r) => Ok(r),
+            None => Err(ExaStatus::Block(crate::exa::Block::Recv)),
+        }
+    }
+
+    pub fn is_m_read_non_block(&self) -> bool {
+        self.reg_m.1.lock().unwrap().is_some()
+    }
+
+    pub fn channel_id(&self) -> Register {
+        Register::Number(self.reg_m.0)
     }
 }
