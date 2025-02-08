@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::exa::{Instruction, Register};
 use crate::runtime::fs::File;
-use crate::runtime::RuntimeHarness;
+use crate::runtime::WeakRT;
 
 use super::Exa;
 
@@ -31,7 +31,7 @@ impl PackedExa {
         }
     }
 
-    pub fn hydrate(self, harness: RuntimeHarness) -> Exa {
+    pub fn hydrate(self, rt_ref: WeakRT) -> Exa {
         Exa {
             name: self.name,
             instr_list: self.instr_list,
@@ -40,8 +40,8 @@ impl PackedExa {
             reg_x: self.reg_x,
             reg_t: self.reg_t,
             reg_f: self.reg_f,
-            reg_m: harness.get_default_reg_m(),
-            harness,
+            reg_m: rt_ref.get_default_reg_m(),
+            rt_ref,
         }
     }
 }

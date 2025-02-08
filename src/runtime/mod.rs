@@ -19,19 +19,19 @@ pub mod ipc;
 pub mod net;
 
 #[derive(Debug)]
-pub struct SharedRT {
+pub struct ArcRT {
     rt: Arc<Runtime>,
 }
 
-impl SharedRT {
-    pub fn generate_harness(&self) -> RuntimeHarness {
-        RuntimeHarness {
+impl ArcRT {
+    pub fn generate_ref(&self) -> WeakRT {
+        WeakRT {
             rt: Arc::downgrade(&self.rt),
         }
     }
 }
 
-impl Deref for SharedRT {
+impl Deref for ArcRT {
     type Target = Runtime;
 
     fn deref(&self) -> &Self::Target {
@@ -40,11 +40,11 @@ impl Deref for SharedRT {
 }
 
 #[derive(Debug, Clone)]
-pub struct RuntimeHarness {
+pub struct WeakRT {
     rt: Weak<Runtime>,
 }
 
-impl RuntimeHarness {
+impl WeakRT {
     pub fn hostname(&self) -> Register {
         self.rt.upgrade().unwrap().hostname()
     }
@@ -116,8 +116,8 @@ impl Runtime {
         }
     }
 
-    pub fn make_shared(self) -> SharedRT {
-        SharedRT { rt: Arc::new(self) }
+    pub fn make_shared(self) -> ArcRT {
+        ArcRT { rt: Arc::new(self) }
     }
 
     pub fn hostname(&self) -> Register {

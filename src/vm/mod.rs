@@ -2,18 +2,18 @@ use std::collections::HashMap;
 
 use crate::exa::{Block, ExaStatus, SideEffect};
 use crate::exa::{Exa, PackedExa};
-use crate::runtime::RuntimeHarness;
+use crate::runtime::WeakRT;
 
 pub struct VM {
     exas: HashMap<usize, Exa>,
-    rth: RuntimeHarness,
+    rt_ref: WeakRT,
 }
 
 impl VM {
-    pub fn new(rth: RuntimeHarness) -> Self {
+    pub fn new(rt_ref: WeakRT) -> Self {
         Self {
             exas: HashMap::new(),
-            rth,
+            rt_ref,
         }
     }
 
@@ -31,7 +31,7 @@ impl VM {
                 Some(n) => n + 1,
                 None => 0,
             },
-            exa.hydrate(self.rth.clone()),
+            exa.hydrate(self.rt_ref.clone()),
         );
     }
 

@@ -9,7 +9,7 @@ pub use status::{Block, Error, ExaStatus, SideEffect};
 use crate::instruction::{Arg, Comp, Instruction, OpCode, RegLabel};
 use crate::runtime::fs::FileHandle;
 use crate::runtime::ipc::ChannelHandle;
-use crate::runtime::RuntimeHarness;
+use crate::runtime::WeakRT;
 
 #[derive(Clone)]
 pub struct Exa {
@@ -21,7 +21,7 @@ pub struct Exa {
     pub reg_t: Register,
     pub reg_f: Option<FileHandle>,
     pub reg_m: ChannelHandle,
-    pub harness: RuntimeHarness,
+    pub rt_ref: WeakRT,
 }
 
 impl Exa {
@@ -154,7 +154,7 @@ impl Exa {
     fn rand(&mut self, (a, b, target): (Arg, Arg, Arg)) -> Result<(), ExaStatus> {
         let a = self.get_number(a)?;
         let b = self.get_number(b)?;
-        self.set_value(target.reg_label()?, self.harness.rand(a, b))
+        self.set_value(target.reg_label()?, self.rt_ref.rand(a, b))
     }
 
     fn test(&mut self, (a, comp, b): (Arg, Arg, Arg)) -> Result<(), ExaStatus> {
@@ -208,7 +208,7 @@ impl Exa {
     }
 
     fn make(&mut self) -> Result<(), ExaStatus> {
-        match self.harness.make_file() {
+        match self.rt_ref.make_file() {
             Some(fh) => {
                 self.reg_f = Some(fh);
                 Ok(())
@@ -219,7 +219,7 @@ impl Exa {
 
     fn grab(&mut self, target: Arg) -> Result<(), ExaStatus> {
         let id = self.get_number(target)?;
-        match self.harness.grab_file(id) {
+        match self.rt_ref.grab_file(id) {
             Some(fh) => {
                 self.reg_f = Some(fh);
                 Ok(())
@@ -252,7 +252,7 @@ impl Exa {
 
     fn drop(&mut self) -> Result<(), ExaStatus> {
         if self.reg_f.is_some() {
-            self.harness.return_file(self.reg_f.take().unwrap());
+            self.rt_ref.return_file(self.reg_f.take().unwrap());
             Ok(())
         } else {
             Err(ExaStatus::Error(Error::NoFileHeld))
@@ -261,7 +261,7 @@ impl Exa {
 
     fn wipe(&mut self) -> Result<(), ExaStatus> {
         if self.reg_f.is_some() {
-            self.harness.wipe_file(self.reg_f.take().unwrap().0);
+            self.rt_ref.wipe_file(self.reg_f.take().unwrap().0);
             Ok(())
         } else {
             Err(ExaStatus::Error(Error::NoFileHeld))
@@ -287,7 +287,7 @@ impl Exa {
     }
 
     fn host(&mut self, target: Arg) -> Result<(), ExaStatus> {
-        self.set_value(target.reg_label()?, self.harness.hostname())
+        self.set_value(target.reg_label()?, self.rt_ref.hostname())
     }
 
     fn get_value(&mut self, target: Arg) -> Result<Register, ExaStatus> {
@@ -311,7 +311,7 @@ impl Exa {
                     }
                 }
                 RegLabel::M => self.recv(),
-                RegLabel::H(h) => self.harness.hw_read(&self, h),
+                RegLabel::H(h) => self.rt_ref.hw_read(&self, h),
             },
             _ => Err(ExaStatus::Error(status::Error::InvalidArgument)),
         }
@@ -343,7 +343,7 @@ impl Exa {
                 }
             }
             RegLabel::M => self.send(value),
-            RegLabel::H(h) => self.harness.hw_write(&self, h, value),
+            RegLabel::H(h) => self.rt_ref.hw_write(&self, h, value),
         }
     }
 

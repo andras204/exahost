@@ -1,38 +1,40 @@
 use std::{
     collections::HashMap,
+    net::SocketAddr,
     sync::Arc,
     thread::{self, JoinHandle},
 };
 
-use flume::Sender;
-use link::LinkHandle;
 use log::info;
 use tokio::{
     net::{TcpListener, ToSocketAddrs},
-    runtime::{self, Runtime},
+    runtime::{self},
     sync::Mutex,
 };
 
-use crate::exa::PackedExa;
+use crate::{exa::PackedExa, runtime::WeakRT};
 
 pub mod link;
 pub mod link_actions;
+mod protocol;
 
 pub struct Server {
-    link_handles: Arc<Mutex<HashMap<i16, LinkHandle>>>,
+    links: Arc<Mutex<HashMap<i16, SocketAddr>>>,
     thread_handle: Option<JoinHandle<()>>,
+    rt_ref: WeakRT,
 }
 
 impl Server {
-    pub fn new() -> Self {
+    pub fn new(rt_ref: WeakRT) -> Self {
         Self {
-            link_handles: Arc::new(Mutex::new(HashMap::new())),
+            links: Arc::new(Mutex::new(HashMap::new())),
             thread_handle: None,
+            rt_ref,
         }
     }
 
     pub fn start(&mut self, bind_addr: impl ToSocketAddrs + Send + 'static) {
-        let lhs = self.link_handles.clone();
+        let lhs = self.links.clone();
         self.thread_handle = Some(thread::spawn(move || {
             let rt = runtime::Builder::new_current_thread()
                 .enable_all()
@@ -49,7 +51,7 @@ impl Server {
     }
 
     async fn listen_loop(
-        link_handles: Arc<Mutex<HashMap<i16, LinkHandle>>>,
+        link_handles: Arc<Mutex<HashMap<i16, SocketAddr>>>,
         bind_addr: impl ToSocketAddrs,
     ) -> Result<(), std::io::Error> {
         let listener = TcpListener::bind(bind_addr).await?;
@@ -64,15 +66,7 @@ impl Server {
 
             let link_handles = link_handles.clone();
 
-            tokio::spawn(async move {
-                let (mut l, h) = link::wrap_tcp(stream);
-                {
-                    let mut lh = link_handles.lock().await;
-                    let k = *(lh.keys().max().unwrap_or(&0));
-                    lh.insert(k, h);
-                }
-                l.handle_connection().await;
-            });
+            tokio::spawn(async move { protocol::handle_connection() });
         }
     }
 }
