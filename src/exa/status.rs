@@ -12,6 +12,13 @@ impl ExaStatus {
             _ => false,
         }
     }
+
+    pub fn is_blocking(&self) -> bool {
+        match self {
+            Self::Block(_) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,11 +26,11 @@ pub enum Block {
     Send,
     Recv,
     Jump,
+    Repl(u8),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SideEffect {
-    Repl(u8),
     Link(i16),
     Kill,
 }

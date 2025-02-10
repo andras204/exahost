@@ -3,11 +3,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::exa::{Instruction, Register};
 use crate::runtime::fs::File;
-use crate::runtime::WeakRT;
+use crate::runtime::SharedRT;
 
 use super::Exa;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Encode, Decode)]
 pub struct PackedExa {
     pub name: String,
     pub instr_list: Box<[Instruction]>,
@@ -31,7 +31,7 @@ impl PackedExa {
         }
     }
 
-    pub fn hydrate(self, rt_ref: WeakRT) -> Exa {
+    pub fn hydrate(self, rt_ref: SharedRT) -> Exa {
         Exa {
             name: self.name,
             instr_list: self.instr_list,

@@ -6,7 +6,7 @@ use std::{
 use compiler::Compiler;
 use config::{CompilerConfig, HostConfig, VMConfig};
 use exa::PackedExa;
-use runtime::{ArcRT, Runtime};
+use runtime::{Runtime, SharedRT};
 use vm::VM;
 
 pub mod compiler;
@@ -20,7 +20,7 @@ pub mod vm;
 pub struct Host {
     compiler: Compiler,
     vm: VM,
-    runtime: ArcRT,
+    runtime: SharedRT,
     config: HostConfig,
 }
 
@@ -33,7 +33,7 @@ impl Host {
         let runtime = Runtime::new(&hostname).make_shared();
         Host {
             compiler: exa_compiler,
-            vm: VM::new(runtime.generate_ref()),
+            vm: VM::new(runtime.clone(), 32),
             runtime,
             config: HostConfig {
                 hostname: hostname.into(),

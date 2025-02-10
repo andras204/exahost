@@ -109,7 +109,7 @@ fn main() {
     rhizome.add_exa(xa);
 
     let mut server = Server::new();
-    server.start("0.0.0.0:6800");
+    server.start_listening("0.0.0.0:6800");
     server.wait();
 
     for _ in 0..10 {

@@ -9,9 +9,9 @@ pub use status::{Block, Error, ExaStatus, SideEffect};
 use crate::instruction::{Arg, Comp, Instruction, OpCode, RegLabel};
 use crate::runtime::fs::FileHandle;
 use crate::runtime::ipc::ChannelHandle;
-use crate::runtime::WeakRT;
+use crate::runtime::SharedRT;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Exa {
     pub name: String,
     pub instr_list: Box<[Instruction]>,
@@ -21,7 +21,7 @@ pub struct Exa {
     pub reg_t: Register,
     pub reg_f: Option<FileHandle>,
     pub reg_m: ChannelHandle,
-    pub rt_ref: WeakRT,
+    pub rt_ref: SharedRT,
 }
 
 impl Exa {
@@ -275,7 +275,7 @@ impl Exa {
     }
 
     fn repl(&mut self, label: Arg) -> Result<(), ExaStatus> {
-        Err(ExaStatus::SideEffect(SideEffect::Repl(label.jump_index()?)))
+        Err(ExaStatus::Block(Block::Repl(label.jump_index()?)))
     }
 
     fn halt() -> Result<(), ExaStatus> {
