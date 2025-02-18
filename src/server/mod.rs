@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    net::SocketAddr,
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     sync::Arc,
     thread::{self, JoinHandle},
 };
@@ -65,6 +65,9 @@ impl Server {
     }
 
     pub fn send_exa(&self, link: i16, queued_exa: Arc<Mutex<Option<PackedExa>>>) {
+        //TODO: send exa -> usize, id in vm bridge
+        // protocol send task -> take exa from vm bridge based on id
+        // if exists send | else abort
         self.control_tx
             .send(ServerCommand::SendPackedExa(link, queued_exa))
             .unwrap();
@@ -103,10 +106,10 @@ impl Server {
             tokio::select! {
                 res = listener.accept() => {
                     let (stream, peer_addr) = res?;
-                    info!("[net] new connection accepted from {}", peer_addr);
+                    info!("[net] new connection from {}", peer_addr);
 
                     let s_ref = server_ref.clone();
-                    tokio::spawn(async move { protocol::respond(stream, s_ref) });
+                    tokio::spawn(async move { protocol::respond(stream, s_ref).await });
                 },
                 res = control_rx.recv_async() => {
                     let command = match res {

@@ -7,7 +7,8 @@ use compiler::Compiler;
 use config::{CompilerConfig, HostConfig, VMConfig};
 use exa::PackedExa;
 use runtime::{Runtime, SharedRT};
-use vm::VM;
+use server::Server;
+use vm::{bridge::VMBridge, VM};
 
 pub mod compiler;
 pub mod config;
@@ -20,20 +21,26 @@ pub mod vm;
 pub struct Host {
     compiler: Compiler,
     vm: VM,
+    pub server: Server,
     runtime: SharedRT,
     config: HostConfig,
 }
 
 impl Host {
-    pub fn new(host_name: &str, _bind_addr: &str) -> Host {
+    pub fn new(host_name: &str, bind_addr: &str) -> Host {
         println!("Initializing host: {}", host_name);
         let exa_compiler = Compiler::new(CompilerConfig::extended());
         let vm_config: VMConfig = VMConfig::default();
         let hostname: Box<str> = host_name.into();
         let runtime = Runtime::new(&hostname).make_shared();
+        let vm = VM::new(runtime.clone(), 32);
+        let mut server = Server::new(vm.get_bridge());
+        server.start_listening(bind_addr.to_owned());
+
         Host {
             compiler: exa_compiler,
-            vm: VM::new(runtime.clone(), 32),
+            vm,
+            server,
             runtime,
             config: HostConfig {
                 hostname: hostname.into(),
@@ -74,8 +81,8 @@ impl Host {
         self.vm.step();
     }
 
-    pub fn connect(&mut self, _address: &(impl ToSocketAddrs + ?Sized)) {
-        unimplemented!()
+    pub fn connect(&mut self, address: &(impl ToSocketAddrs + ?Sized)) {
+        self.server.connect(address);
     }
 
     pub fn save_config(&self) -> Result<(), std::io::Error> {

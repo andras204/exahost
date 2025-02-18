@@ -30,6 +30,10 @@ impl VM {
         }
     }
 
+    pub fn get_bridge(&self) -> Arc<Mutex<VMBridge>> {
+        self.bridge.clone()
+    }
+
     pub fn step(&mut self) {
         if self.exas.is_empty() {
             return;

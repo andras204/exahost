@@ -48,6 +48,14 @@ impl Message {
         Self::Response(Response::Yes)
     }
 
+    pub fn no() -> Self {
+        Self::Response(Response::No)
+    }
+
+    pub fn connect_request(port: u16) -> Self {
+        Self::Request(Request::Connect(port))
+    }
+
     pub fn exa_request() -> Self {
         Self::Request(Request::SendExa)
     }

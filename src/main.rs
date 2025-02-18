@@ -1,4 +1,4 @@
-use exahost::{server::Server, Host};
+use exahost::Host;
 use simplelog::{Config, TermLogger};
 
 fn main() {
@@ -11,6 +11,13 @@ fn main() {
     .unwrap();
 
     let mut rhizome = Host::default();
+    std::thread::sleep(std::time::Duration::from_secs(60));
+    // let mut rhizome = Host::new("rhizome2", "0.0.0.0:8800");
+    // rhizome.connect("127.0.0.1:6800");
+
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    println!("server: {:?}", rhizome.server);
+
     // rhizome.save_config().unwrap();
     let test = vec![
         // "@rep 5",
@@ -105,12 +112,7 @@ fn main() {
     // rhizome.add_exa(test);
 
     let xa = rhizome.compile_exa("XA", test).unwrap();
-    // dbg!(&xa);
-    rhizome.add_exa(xa);
-
-    let mut server = Server::new();
-    server.start_listening("0.0.0.0:6800");
-    server.wait();
+    // rhizome.add_exa(xa);
 
     for _ in 0..10 {
         rhizome.step();

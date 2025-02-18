@@ -11,10 +11,7 @@ use rand::{
     Rng, SeedableRng,
 };
 
-use crate::{
-    exa::{Exa, ExaStatus, Register},
-    server::Server,
-};
+use crate::exa::{Exa, ExaStatus, Register};
 
 use self::{fs::FsModule, ipc::IpcModule};
 
@@ -33,7 +30,6 @@ pub struct Runtime {
     ipc: Mutex<IpcModule>,
     fs: Mutex<FsModule>,
     hw: Mutex<HashMap<Box<str>, Box<dyn HardwareRegister>>>,
-    net: Mutex<Server>,
 }
 
 impl Runtime {
@@ -53,7 +49,6 @@ impl Runtime {
             ipc: Mutex::new(ipc),
             fs: Mutex::new(FsModule::new("./files")),
             hw: Mutex::new(hw_map),
-            net: Mutex::new(Server::new()),
         }
     }
 

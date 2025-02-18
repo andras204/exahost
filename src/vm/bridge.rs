@@ -67,4 +67,8 @@ impl VMBridge {
     pub fn is_full(&self) -> bool {
         self.current_capacity >= self.max_capacity
     }
+
+    pub fn has_space(&self) -> bool {
+        !self.is_full()
+    }
 }
