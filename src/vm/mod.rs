@@ -69,6 +69,7 @@ impl VM {
     }
 
     fn apply_side_effects(&mut self, results: Vec<(usize, ExaStatus)>) {
+        let mut sent_link_notif = false;
         for (k, res) in results {
             match res {
                 ExaStatus::Block(b) => match b {
@@ -83,7 +84,13 @@ impl VM {
                 ExaStatus::SideEffect(se) => match se {
                     SideEffect::Kill => self.kill(k),
                     SideEffect::Link(l) => {
-                        unimplemented!()
+                        let (exa, t) = self.remove_exa_internal(k);
+                        self.backbone.outgoing().store_exa((k, exa.pack()), l, t);
+                        if !sent_link_notif {
+                            self.backbone
+                                .send_server_command(crate::message::ServerCommand::NotifyExaLink);
+                            sent_link_notif = true;
+                        }
                     }
                 },
                 ExaStatus::Error(e) => {
