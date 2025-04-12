@@ -15,3 +15,5 @@ regex = "1.10.4"
 bitcode = { version = "0.6.0" }
 log = "0.4.22"
 simplelog = "0.12.2"
+clap = { version = "4.5.35", features = ["derive"] }
+nohash-hasher = "0.2.0"

@@ -1,4 +1,7 @@
-use crate::exa::{Exa, ExaStatus, Register};
+use crate::exa::{
+    status::{self, ExaStatus},
+    Exa, Register,
+};
 
 pub trait HardwareRegister: std::fmt::Debug {
     fn label_str(&self) -> Box<str>;
@@ -13,11 +16,11 @@ pub struct PrintRegister;
 
 impl HardwareRegister for PrintRegister {
     fn label_str(&self) -> Box<str> {
-        "#prnt".into()
+        "#prnt".to_uppercase().into()
     }
 
     fn read(&mut self, exa: &Exa) -> Result<Register, ExaStatus> {
-        Err(ExaStatus::Error(crate::exa::Error::InvalidHWRegisterAccess))
+        Err(ExaStatus::Error(status::Error::InvalidHWRegisterAccess))
     }
 
     fn write(&mut self, exa: &Exa, value: Register) -> Result<(), ExaStatus> {

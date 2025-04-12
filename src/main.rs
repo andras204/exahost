@@ -1,120 +1,25 @@
-use exahost::Host;
-use simplelog::{Config, TermLogger};
+use exahost::{
+    compiler::Compiler,
+    config::{CompilerConfig, Config},
+    exa::PackedExa,
+    vm::runtime::Runtime,
+};
 
 fn main() {
-    TermLogger::init(
-        log::LevelFilter::Trace,
-        Config::default(),
-        simplelog::TerminalMode::Stdout,
-        simplelog::ColorChoice::Auto,
-    )
-    .unwrap();
+    let rt = Runtime::new("rhizome", "./files");
+    let add_test = vec!["copy 9999 x", "addi 100 x x", "copy x #prnt"];
+    let compiler = Compiler::new(CompilerConfig::extended());
 
-    let mut rhizome = Host::default();
-    std::thread::sleep(std::time::Duration::from_secs(60));
-    // let mut rhizome = Host::new("rhizome2", "0.0.0.0:8800");
-    // rhizome.connect("127.0.0.1:6800");
+    let code = compiler.compile(&add_test[..]).unwrap();
+    let mut exa = PackedExa::new("XA", code).hydrate(rt);
 
-    std::thread::sleep(std::time::Duration::from_secs(1));
-    println!("server: {:?}", rhizome.server);
-
-    // rhizome.save_config().unwrap();
-    let test = vec![
-        // "@rep 5",
-        // "addi 32000 x t",
-        // "@end",
-        // "",
-        // "",
-        // "",
-        // "",
-        // "copy 8008 #prnt",
-        "mark asd",
-        "copy 'before repl' #prnt",
-        "repl asdw",
-        "jump asd",
-        "halt",
-        "mark asdw",
-        "copy 'before repl' #prnt",
-    ];
-
-    // let test = vec![
-    //     "@rep 5",
-    //     "addi 32000 x t",
-    //     "@end",
-    //     "",
-    //     "",
-    //     "",
-    //     "",
-    //     "mode",
-    //     "mode",
-    //     "mode",
-    //     "mode",
-    //     "copy 8008 #DBG",
-    // ];
-
-    // let switch = vec![
-    //     "copy m x",
-    //     "@rep 5",
-    //     "test x = @{1,1}",
-    //     "tjmp CASE@{1,1}",
-    //     "@end",
-    //     "halt",
-    //     "@rep 5",
-    //     "mark CASE@{1,1}",
-    //     "copy @{1,1} #DBG",
-    //     "halt",
-    //     "@end",
-    // ];
-
-    // let reader = vec![
-    //     "grab 0",
-    //     "mark ASD",
-    //     "seek -999",
-    //     "rand 1 5 x",
-    //     "copy x #DBG",
-    //     "seek x",
-    //     "test eof",
-    //     "tjmp ASD",
-    //     "copy f x",
-    //     "copy x #DBG",
-    //     "copy x m",
-    // ];
-
-    // let fibonacci = vec![
-    //     "copy 1 t",
-    //     "mark LOOP",
-    //     "copy x #DBG",
-    //     "addi x t t",
-    //     "copy t #DBG",
-    //     "addi x t x",
-    //     "jump LOOP",
-    // ];
-
-    // let f = File::from(vec!["1", "2", "3", "4", "5"]);
-
-    // let xa = rhizome.compile_exa("XA", switch).unwrap();
-
-    // let xb = rhizome.compile_exa("XB", reader).unwrap();
-
-    // let xc = rhizome
-    //     .compile_exa("XC", vec!["host x", "copy x #DBG"])
-    //     .unwrap();
-
-    // let fi = rhizome.compile_exa("FI", fibonacci).unwrap();
-
-    // let test = rhizome.compile_exa("TEST", test).unwrap();
-
-    // rhizome.add_file(f);
-
-    // rhizome.add_exa(xa);
-    // rhizome.add_exa(xb);
-    // rhizome.add_exa(xc);
-    // rhizome.add_exa(test);
-
-    let xa = rhizome.compile_exa("XA", test).unwrap();
-    // rhizome.add_exa(xa);
-
-    for _ in 0..10 {
-        rhizome.step();
+    for _ in 0..3 {
+        println!("{:?}", exa.exec());
     }
+
+    let config = Config::default();
+    let toml = toml::to_string_pretty(&config).unwrap();
+    println!("\n{}", toml);
+    let dec: Config = toml::from_str(&toml).unwrap();
+    print!("\n{:?}", dec);
 }

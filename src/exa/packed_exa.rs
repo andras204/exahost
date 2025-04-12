@@ -2,8 +2,7 @@ use bitcode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate::exa::{Instruction, Register};
-use crate::runtime::fs::File;
-use crate::runtime::SharedRT;
+use crate::vm::runtime::{fs::FileHandle, Runtime};
 
 use super::Exa;
 
@@ -15,7 +14,7 @@ pub struct PackedExa {
     pub repl_counter: u16,
     pub reg_x: Register,
     pub reg_t: Register,
-    pub reg_f: Option<(i16, File)>,
+    pub reg_f: Option<FileHandle>,
 }
 
 impl PackedExa {
@@ -31,7 +30,7 @@ impl PackedExa {
         }
     }
 
-    pub fn hydrate(self, rt_ref: SharedRT) -> Exa {
+    pub fn hydrate(self, rt: Runtime) -> Exa {
         Exa {
             name: self.name,
             instr_list: self.instr_list,
@@ -40,8 +39,7 @@ impl PackedExa {
             reg_x: self.reg_x,
             reg_t: self.reg_t,
             reg_f: self.reg_f,
-            reg_m: rt_ref.get_default_reg_m(),
-            rt_ref,
+            rt,
         }
     }
 }

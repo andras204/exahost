@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use crate::compiler::{Signature, TokenType};
 
-use crate::instruction::OpCode;
+use crate::exa::instruction::OpCode;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompilerConfig {

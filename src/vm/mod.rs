@@ -1,54 +1,59 @@
-use std::collections::HashMap;
-use std::sync::Arc;
+use log::*;
+use nohash_hasher::IntMap;
+use rand::{rngs::ThreadRng, seq::IteratorRandom, Rng};
 
-use bridge::VMBridge;
-use log::info;
-use rand::{rngs::ThreadRng, Rng};
-use tokio::sync::Mutex;
+use crate::{
+    backbone::{capacity_pool::CapacityToken, Backbone},
+    exa::{status::*, Exa, PackedExa},
+};
 
-use crate::exa::{Block, ExaStatus, SideEffect};
-use crate::exa::{Exa, PackedExa};
-use crate::runtime::SharedRT;
+pub mod runtime;
 
-pub mod bridge;
+use runtime::Runtime;
 
 #[derive(Debug)]
 pub struct VM {
-    exas: HashMap<usize, Exa>,
+    exas: IntMap<usize, Exa>,
     rng: ThreadRng,
-    rt_ref: SharedRT,
-    bridge: Arc<Mutex<VMBridge>>,
+    rt: Runtime,
+    backbone: Backbone,
+    cap_tokens: Vec<CapacityToken>,
 }
 
 impl VM {
-    pub fn new(rt_ref: SharedRT, max_capacity: usize) -> Self {
+    pub fn new(rt: Runtime, backbone: Backbone) -> Self {
         Self {
-            exas: HashMap::new(),
+            exas: IntMap::default(),
             rng: rand::rng(),
-            rt_ref,
-            bridge: Arc::new(Mutex::new(VMBridge::new(max_capacity))),
+            rt,
+            backbone,
+            cap_tokens: Vec::new(),
         }
     }
 
-    pub fn get_bridge(&self) -> Arc<Mutex<VMBridge>> {
-        self.bridge.clone()
+    pub fn add_exa(&mut self, exa: PackedExa) -> Result<(), PackedExa> {
+        let ct = match self.backbone.cap_pool().take_token() {
+            Some(ct) => ct,
+            None => return Err(exa),
+        };
+        self.add_exa_internal(exa.hydrate(self.rt.clone()), ct);
+        Ok(())
+    }
+
+    pub fn collect_incoming_exas(&mut self) {
+        let inc = self.backbone.incoming().drain();
+        for (exa, ct) in inc {
+            self.add_exa_internal(exa.hydrate(self.rt.clone()), ct);
+        }
     }
 
     pub fn step(&mut self) {
+        self.collect_incoming_exas();
         if self.exas.is_empty() {
             return;
         }
         let results = self.exec_all();
         self.apply_side_effects(results);
-    }
-
-    pub fn add_exa(&mut self, exa: PackedExa) -> Result<(), PackedExa> {
-        if self.is_full() {
-            return Err(exa);
-        }
-        self.add_exa_internal(exa.hydrate(self.rt_ref.clone()))
-            .unwrap();
-        Ok(())
     }
 
     fn exec_all(&mut self) -> Vec<(usize, ExaStatus)> {
@@ -71,89 +76,76 @@ impl VM {
                         let _ = self.exas.get_mut(&k).unwrap().exec();
                     }
                     Block::Repl(j) => {
-                        self.generate_clone(&k, j);
+                        self.generate_clone(k, j);
                     }
                     _ => (),
                 },
                 ExaStatus::SideEffect(se) => match se {
                     SideEffect::Kill => self.kill(k),
                     SideEffect::Link(l) => {
-                        let exa = self.exas.remove(&k).unwrap();
-                        self.bridge
-                            .blocking_lock()
-                            .txfer_to_outgoing(k, l, exa.pack());
+                        unimplemented!()
                     }
                 },
                 ExaStatus::Error(e) => {
-                    let name = self.remove_exa_internal(&k).name;
-                    info!("Exa error: {} |> {:?}", name, e);
+                    let name = self.remove_exa_internal(k).0.name;
+                    info!("[VM] exa error: {} |> {:?}", name, e);
                 }
             }
         }
     }
 
     fn kill(&mut self, k: usize) {
-        let mut bridge = self.bridge.blocking_lock();
-        let len = self.exas.len() + bridge.outgoing_len();
-        let r = self.rng.random_ratio(self.exas.len() as u32, len as u32);
-        if r {
-            for k2 in self.exas.keys() {
-                if k2 != &k {
-                    self.exas.remove(&k).unwrap();
-                    break;
-                }
-            }
-        } else {
-            for k2 in bridge.keys() {
-                if k2 != &k {
-                    bridge.remove_outgoing(&k);
-                    break;
-                }
-            }
-        }
-        bridge.update_capacity(self.exas.len());
-    }
-
-    fn generate_clone(&mut self, k: &usize, j: u8) {
-        if self.is_full() {
+        let out_len = self.backbone.outgoing().len();
+        let total_len = out_len + self.exas.len();
+        if total_len < 1 {
             return;
         }
+        let kill_active = self
+            .rng
+            .random_ratio(self.exas.len() as u32, total_len as u32);
+        if kill_active {
+            let mut kt = self.exas.keys().choose(&mut self.rng).unwrap().to_owned();
+            while kt == k {
+                kt = self.exas.keys().choose(&mut self.rng).unwrap().to_owned();
+            }
+            self.remove_exa_internal(kt);
+        } else {
+            self.backbone.outgoing().kill(&mut self.rng);
+        }
+    }
 
-        let original = self.exas.get_mut(k).unwrap();
+    fn generate_clone(&mut self, k: usize, j: u8) {
+        let ct = match self.backbone.cap_pool().take_token() {
+            Some(ct) => ct,
+            None => return,
+        };
+
+        let original = self.exas.get_mut(&k).unwrap();
+        let mut clone = original.clone();
 
         original.repl_counter += 1;
         original.instr_ptr += 1;
 
-        let mut clone = original.clone();
-
-        clone.instr_ptr = j;
         clone.repl_counter = 0;
+        clone.instr_ptr = j;
         clone.name.push_str(&format!(":{}", original.repl_counter));
 
-        self.add_exa_internal(clone).unwrap();
+        self.add_exa_internal(clone, ct);
     }
 
-    fn add_exa_internal(&mut self, exa: Exa) -> Result<(), ()> {
-        if self.is_full() {
-            return Err(());
-        }
-        self.exas
-            .insert(self.exas.keys().max().unwrap_or(&0) + 1, exa);
-        self.update_cap();
-        Ok(())
+    fn add_exa_internal(&mut self, exa: Exa, cap_token: CapacityToken) {
+        self.cap_tokens.push(cap_token);
+        self.exas.insert(self.get_next_exa_key(), exa);
     }
 
-    fn remove_exa_internal(&mut self, k: &usize) -> Exa {
-        let exa = self.exas.remove(k).unwrap();
-        self.update_cap();
-        exa
+    fn remove_exa_internal(&mut self, k: usize) -> (Exa, CapacityToken) {
+        (
+            self.exas.remove(&k).unwrap(),
+            self.cap_tokens.pop().unwrap(),
+        )
     }
 
-    fn is_full(&self) -> bool {
-        self.bridge.blocking_lock().is_full()
-    }
-
-    fn update_cap(&self) {
-        self.bridge.blocking_lock().update_capacity(self.exas.len());
+    fn get_next_exa_key(&self) -> usize {
+        self.exas.keys().max().unwrap_or(&0) + 1
     }
 }

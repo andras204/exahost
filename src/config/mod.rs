@@ -1,40 +1,27 @@
-use std::rc::Rc;
-
-use serde::{Deserialize, Serialize};
-
 mod compiler_config;
-mod vm_config;
+mod server_config;
+
+use std::net::{SocketAddr, ToSocketAddrs};
 
 pub use compiler_config::CompilerConfig;
-pub use vm_config::VMConfig;
+use serde::{Deserialize, Serialize};
+pub use server_config::ServerConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HostConfig {
-    pub hostname: Rc<Box<str>>,
-    pub compiler_config: Rc<CompilerConfig>,
-    pub vm_config: Rc<VMConfig>,
+pub struct Config {
+    hostname: Box<str>,
+    max_exas: usize,
+    server: ServerConfig,
+    compiler: CompilerConfig,
 }
 
-impl HostConfig {
-    pub fn new(
-        hostname: Rc<Box<str>>,
-        compiler_config: Rc<CompilerConfig>,
-        vm_config: Rc<VMConfig>,
-    ) -> Self {
-        Self {
-            hostname,
-            compiler_config,
-            vm_config,
-        }
-    }
-}
-
-impl Default for HostConfig {
+impl Default for Config {
     fn default() -> Self {
-        Self::new(
-            Rc::new("Rhizome".into()),
-            CompilerConfig::default().into(),
-            VMConfig::default().into(),
-        )
+        Self {
+            hostname: "Rhizome".into(),
+            max_exas: 9,
+            server: ServerConfig::default(),
+            compiler: CompilerConfig::extended(),
+        }
     }
 }

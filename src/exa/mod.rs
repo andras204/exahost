@@ -1,15 +1,15 @@
+pub mod instruction;
 mod packed_exa;
 mod register;
 pub mod status;
 
 pub use packed_exa::PackedExa;
 pub use register::Register;
-pub use status::{Block, Error, ExaStatus, SideEffect};
 
-use crate::instruction::{Arg, Comp, Instruction, OpCode, RegLabel};
-use crate::runtime::fs::FileHandle;
-use crate::runtime::ipc::ChannelHandle;
-use crate::runtime::SharedRT;
+use instruction::{Arg, Comp, Instruction, OpCode, RegLabel};
+use status::{Block, Error, ExaStatus, SideEffect};
+
+use crate::vm::runtime::{fs::FileHandle, Runtime};
 
 #[derive(Debug, Clone)]
 pub struct Exa {
@@ -20,8 +20,7 @@ pub struct Exa {
     pub reg_x: Register,
     pub reg_t: Register,
     pub reg_f: Option<FileHandle>,
-    pub reg_m: ChannelHandle,
-    pub rt_ref: SharedRT,
+    pub rt: Runtime,
 }
 
 impl Exa {
@@ -154,7 +153,7 @@ impl Exa {
     fn rand(&mut self, (a, b, target): (Arg, Arg, Arg)) -> Result<(), ExaStatus> {
         let a = self.get_number(a)?;
         let b = self.get_number(b)?;
-        self.set_value(target.reg_label()?, self.rt_ref.rand(a, b))
+        self.set_value(target.reg_label()?, self.rt.rand(a, b))
     }
 
     fn test(&mut self, (a, comp, b): (Arg, Arg, Arg)) -> Result<(), ExaStatus> {
@@ -182,7 +181,7 @@ impl Exa {
     fn test_mrd(&mut self) -> Result<(), ExaStatus> {
         self.set_value(
             RegLabel::T,
-            Register::Number(self.is_m_read_non_block() as i16),
+            Register::Number(self.rt.would_m_read_not_block() as i16),
         )
     }
 
@@ -208,7 +207,7 @@ impl Exa {
     }
 
     fn make(&mut self) -> Result<(), ExaStatus> {
-        match self.rt_ref.make_file() {
+        match self.rt.make_file() {
             Some(fh) => {
                 self.reg_f = Some(fh);
                 Ok(())
@@ -219,7 +218,7 @@ impl Exa {
 
     fn grab(&mut self, target: Arg) -> Result<(), ExaStatus> {
         let id = self.get_number(target)?;
-        match self.rt_ref.grab_file(id) {
+        match self.rt.grab_file(id) {
             Some(fh) => {
                 self.reg_f = Some(fh);
                 Ok(())
@@ -252,7 +251,7 @@ impl Exa {
 
     fn drop(&mut self) -> Result<(), ExaStatus> {
         if self.reg_f.is_some() {
-            self.rt_ref.return_file(self.reg_f.take().unwrap());
+            self.rt.return_file(self.reg_f.take().unwrap());
             Ok(())
         } else {
             Err(ExaStatus::Error(Error::NoFileHeld))
@@ -261,7 +260,7 @@ impl Exa {
 
     fn wipe(&mut self) -> Result<(), ExaStatus> {
         if self.reg_f.is_some() {
-            self.rt_ref.wipe_file(self.reg_f.take().unwrap().0);
+            self.rt.wipe_file(self.reg_f.take().unwrap().0);
             Ok(())
         } else {
             Err(ExaStatus::Error(Error::NoFileHeld))
@@ -287,7 +286,7 @@ impl Exa {
     }
 
     fn host(&mut self, target: Arg) -> Result<(), ExaStatus> {
-        self.set_value(target.reg_label()?, self.rt_ref.hostname())
+        self.set_value(target.reg_label()?, self.rt.hostname())
     }
 
     fn get_value(&mut self, target: Arg) -> Result<Register, ExaStatus> {
@@ -310,8 +309,8 @@ impl Exa {
                         Err(ExaStatus::Error(Error::NoFileHeld))
                     }
                 }
-                RegLabel::M => self.recv(),
-                RegLabel::H(h) => self.rt_ref.hw_read(&self, h),
+                RegLabel::M => self.rt.recv_m(),
+                RegLabel::H(h) => self.rt.hw_read(&self, h),
             },
             _ => Err(ExaStatus::Error(status::Error::InvalidArgument)),
         }
@@ -342,33 +341,8 @@ impl Exa {
                     Err(ExaStatus::Error(Error::NoFileHeld))
                 }
             }
-            RegLabel::M => self.send(value),
-            RegLabel::H(h) => self.rt_ref.hw_write(&self, h, value),
+            RegLabel::M => self.rt.send_m(value),
+            RegLabel::H(h) => self.rt.hw_write(&self, h, value),
         }
-    }
-
-    pub fn send(&self, value: Register) -> Result<(), ExaStatus> {
-        let mut reg_m = self.reg_m.1.lock().unwrap();
-        if reg_m.is_none() {
-            *reg_m = Some(value);
-            Ok(())
-        } else {
-            Err(ExaStatus::Block(crate::exa::Block::Send))
-        }
-    }
-
-    pub fn recv(&self) -> Result<Register, ExaStatus> {
-        match self.reg_m.1.lock().unwrap().take() {
-            Some(r) => Ok(r),
-            None => Err(ExaStatus::Block(crate::exa::Block::Recv)),
-        }
-    }
-
-    pub fn is_m_read_non_block(&self) -> bool {
-        self.reg_m.1.lock().unwrap().is_some()
-    }
-
-    pub fn channel_id(&self) -> Register {
-        Register::Number(self.reg_m.0)
     }
 }

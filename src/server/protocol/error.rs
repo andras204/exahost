@@ -15,11 +15,11 @@ impl Error {
         Self::ProtocolError(ProtocolError::DecodeFail)
     }
 
-    pub fn too_long() -> Self {
-        Self::ProtocolError(ProtocolError::TooLong)
+    pub fn message_too_long() -> Self {
+        Self::ProtocolError(ProtocolError::MessageTooLong)
     }
 
-    pub fn invalid_seq() -> Self {
+    pub fn invalid_message_sequence() -> Self {
         Self::ProtocolError(ProtocolError::InvalidMessageSequence)
     }
 }
@@ -28,7 +28,7 @@ impl Error {
 enum ProtocolError {
     VersionMismatch,
     DecodeFail,
-    TooLong,
+    MessageTooLong,
     InvalidMessageSequence,
 }
 

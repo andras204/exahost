@@ -1,25 +1,30 @@
+use std::net::SocketAddr;
+
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
 
-use super::message::{Message, ProtocolHeader};
+use super::{message::Message, Header};
 
-pub struct MessageStream {
+#[derive(Debug)]
+pub struct ProtocolStream {
     stream: TcpStream,
 }
 
-impl MessageStream {
+impl ProtocolStream {
     pub fn wrap_tcp(stream: TcpStream) -> Self {
         Self { stream }
     }
 
-    pub async fn read_message(&mut self) -> Result<Message, super::Error> {
-        let header = ProtocolHeader::from_u64(self.stream.read_u64().await?);
+    pub fn peer_addr(&self) -> Result<SocketAddr, std::io::Error> {
+        self.stream.peer_addr()
+    }
 
-        if !super::is_header_version_valid(&header) {
-            return Err(super::Error::version_mismatch());
-        };
+    pub async fn read_message(&mut self) -> Result<Message, super::Error> {
+        let header = Header(self.stream.read_u64().await?);
+
+        super::validate_header_version(&header)?;
 
         let mut payload: Vec<u8> = vec![0; header.payload_len()];
 
@@ -34,12 +39,7 @@ impl MessageStream {
     pub async fn send_message(&mut self, message: Message) -> Result<(), super::Error> {
         let payload: Box<[u8]> = message.into();
 
-        let header = match super::generate_header(payload.len()) {
-            Ok(h) => h,
-            Err(_) => {
-                return Err(super::Error::too_long());
-            }
-        };
+        let header = super::generate_header(payload.len())?;
 
         self.stream.write_u64(header.to_u64()).await?;
 

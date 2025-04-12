@@ -3,7 +3,7 @@ use std::{fmt::Display, str::FromStr};
 use bitcode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-use crate::exa::{status, ExaStatus};
+use crate::exa::status::{self, ExaStatus};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Encode, Decode)]
 pub enum Arg {
