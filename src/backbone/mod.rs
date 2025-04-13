@@ -79,11 +79,11 @@ impl Backbone {
         &self.server_control_rx
     }
 
-    pub async fn set_server_listening_addr(&self, addr: SocketAddr) {
-        *self.server_listening_addr.lock().await = Some(addr);
+    pub fn set_server_listening_addr(&self, addr: SocketAddr) {
+        *self.server_listening_addr.blocking_lock() = Some(addr);
     }
 
-    pub async fn get_server_listening_addr(&self) -> SocketAddr {
+    pub async fn get_server_listening_addr_async(&self) -> SocketAddr {
         self.server_listening_addr.lock().await.clone().unwrap()
     }
 }
