@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 
+use log::info;
 use tokio::net::TcpStream;
 
 use crate::backbone::Backbone;
@@ -18,23 +19,37 @@ pub async fn dispatch_all_unhandled(backbone: Backbone) {
 }
 
 pub async fn send(backbone: Backbone, exa_id: usize) -> Result<(), ProtocolError> {
+    info!("[SERVER->EXA] attempting to send exa-{}", exa_id);
     let link = match backbone.outgoing().get_link_async(exa_id).await {
         Some(l) => l,
-        None => return Ok(()),
+        None => {
+            info!("[SERVER->EXA] exa-{} killed before send", exa_id);
+            return Err(ProtocolError::exa_killed_before_send());
+        }
     };
     let addr = match backbone.connections().get_addr_async(link).await {
         Some(a) => a,
         None => {
             backbone.outgoing().take_exa_async(exa_id).await;
+            info!(
+                "[SERVER->EXA] exa-{} link disconnected before send, killing",
+                exa_id
+            );
             return Ok(());
         }
     };
 
     backbone.outgoing().mark_handled_async(exa_id).await;
 
+    info!("[SERVER->EXA] exa-{} ready, entering send loop", exa_id);
+
     let res = try_send_loop(backbone.clone(), exa_id, addr).await;
 
     backbone.outgoing().mark_unhandled_async(exa_id).await;
+
+    if res.is_ok() {
+        info!("[SERVER->EXA] exa-{} sent successfully", exa_id);
+    }
 
     res
 }
@@ -55,7 +70,7 @@ async fn try_send_loop(
                 Some((e, _)) => e,
                 None => {
                     send_msg(&mut stream, Message::abort()).await?;
-                    return Ok(());
+                    return Err(ProtocolError::exa_killed_before_send());
                 }
             };
             send_msg(&mut stream, Message::exa(exa)).await?;
@@ -83,6 +98,11 @@ pub async fn recv(backbone: Backbone, mut stream: ProtocolStream) -> Result<(), 
     };
 
     backbone.incoming().push_async(exa, t).await;
+
+    info!(
+        "[SERVER->EXA] accepted exa from {}",
+        stream.peer_addr().unwrap()
+    );
 
     Ok(())
 }

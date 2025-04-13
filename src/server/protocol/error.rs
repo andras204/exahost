@@ -22,6 +22,10 @@ impl Error {
     pub fn invalid_message_sequence() -> Self {
         Self::ProtocolError(ProtocolError::InvalidMessageSequence)
     }
+
+    pub fn exa_killed_before_send() -> Self {
+        Self::ProtocolError(ProtocolError::ExaKilledBeforeSend)
+    }
 }
 
 #[derive(Debug)]
@@ -30,6 +34,7 @@ enum ProtocolError {
     DecodeFail,
     MessageTooLong,
     InvalidMessageSequence,
+    ExaKilledBeforeSend,
 }
 
 impl From<std::io::Error> for Error {

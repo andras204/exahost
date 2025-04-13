@@ -1,3 +1,4 @@
+use log::info;
 use tokio::net::TcpStream;
 
 use crate::backbone::Backbone;
@@ -13,6 +14,8 @@ pub async fn handle_request(backbone: Backbone, tcp: TcpStream) -> Result<(), Er
 
     let req = read_request(&mut stream).await?;
 
+    info!("[SERVER->RQ_HANDLER] handling request: {:?}", req);
+
     match req {
         Request::Connect(p) => connection::accept_connection(backbone, stream, p).await?,
         Request::SendExa => exa::recv(backbone, stream).await?,
@@ -22,9 +25,10 @@ pub async fn handle_request(backbone: Backbone, tcp: TcpStream) -> Result<(), Er
 }
 
 pub async fn exec_server_command(backbone: Backbone, sc: ServerCommand) -> Result<(), Error> {
-    let port = backbone.get_server_listening_addr().await.port();
+    info!("[SERVER->TASK] executing command: {:?}", &sc);
     match sc {
         ServerCommand::Connect(addr, link_id) => {
+            let port = backbone.get_server_listening_addr_async().await.port();
             connection::connect(backbone, link_id, addr, port).await?
         }
         ServerCommand::NotifyExaLink => {

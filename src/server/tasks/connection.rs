@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 
+use log::info;
 use tokio::net::TcpStream;
 
 use crate::backbone::Backbone;
@@ -26,11 +27,20 @@ pub async fn connect(
         };
         backbone.connections().add_async(lid, addr).await;
 
-        keepalive_loop(stream).await?;
+        info!(
+            "[SERVER->CONNECTION] successfully connected to {}, entering keepalive loop",
+            addr
+        );
+
+        let res = keepalive_loop(stream).await;
+
+        info!("[SERVER->CONNECTION] {} disconnected", addr);
 
         backbone.connections().remove_async(lid).await;
-        return Ok(());
+        return res;
     }
+
+    info!("[SERVER->CONNECTION] {} refused connection", addr);
 
     Ok(())
 }
@@ -48,11 +58,18 @@ pub async fn accept_connection(
     let lid = backbone.connections().auto_enum_async(true).await;
     backbone.connections().add_async(lid, addr).await;
 
-    keepalive_loop(stream).await?;
+    info!(
+        "[SERVER->CONNECTION] accepted connection from {}, entering keepalive loop",
+        addr
+    );
+
+    let res = keepalive_loop(stream).await;
+
+    info!("[SERVER->CONNECTION] {} disconnected", addr);
 
     backbone.connections().remove_async(lid).await;
 
-    Ok(())
+    res
 }
 
 async fn keepalive_loop(mut stream: ProtocolStream) -> Result<(), ProtocolError> {

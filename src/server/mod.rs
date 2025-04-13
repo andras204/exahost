@@ -3,6 +3,7 @@ use std::{
     thread::{self, JoinHandle},
 };
 
+use log::{error, info, warn};
 use tokio::net::TcpListener;
 
 use crate::backbone::Backbone;
@@ -56,6 +57,9 @@ impl Server {
 
         let listener = rt.block_on(async move { TcpListener::bind(addr).await })?;
 
+        self.backbone
+            .set_server_listening_addr(listener.local_addr().unwrap());
+
         let bb = self.backbone.clone();
 
         self.thread_handle = Some(thread::spawn(move || {
@@ -66,25 +70,32 @@ impl Server {
 
     async fn main_loop(backbone: Backbone, listener: TcpListener) -> Result<(), std::io::Error> {
         let mut shutdown = backbone.get_shutdown_listener();
+        info!("[SERVER] entering main loop");
         loop {
             tokio::select! {
                 res = listener.accept() => {
-                    let (tcp, _addr) = res?;
+                    let (tcp, addr) = match res {
+                        Ok(v) => v,
+                        Err(_) => break,
+                    };
+                    info!("[SERVER] incoming request from {}", addr);
                     let bb = backbone.clone();
                     tokio::spawn(async move { tasks::handle_request(bb, tcp).await });
                 }
                 comm = backbone.server_command_rx().recv_async() => {
                     let comm = match comm {
                         Ok(c) => c,
-                        Err(_) => return Ok(()),
+                        Err(_) => break,
                     };
                     let bb = backbone.clone();
                     tokio::spawn(async move { tasks::exec_server_command(bb, comm).await });
                 }
                 _ = shutdown.recv() => {
-                    return Ok(());
+                    break;
                 }
             }
         }
+        info!("[SERVER] shutting down");
+        Ok(())
     }
 }
