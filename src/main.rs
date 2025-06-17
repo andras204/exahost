@@ -1,5 +1,4 @@
-use clap::Parser;
-use exahost::cli::parser::{Interactive, Startup};
+use exahost::Host;
 
 fn main() {
     simplelog::TermLogger::init(
@@ -10,6 +9,6 @@ fn main() {
     )
     .unwrap();
 
-    // let start_commands = Startup::parse();
-    let _ = Interactive::parse();
+    let mut host = Host::new("Rhizome", 16, &"0.0.0.0:6800", 1);
+    let _ = host.start();
 }

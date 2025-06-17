@@ -4,6 +4,7 @@ use std::fmt::Display;
 pub enum Error {
     ProtocolError(ProtocolError),
     IoError(std::io::Error),
+    ManualDisconnect,
 }
 
 impl Error {
@@ -25,6 +26,10 @@ impl Error {
 
     pub fn exa_killed_before_send() -> Self {
         Self::ProtocolError(ProtocolError::ExaKilledBeforeSend)
+    }
+
+    pub fn manual_disconnect() -> Self {
+        Self::ManualDisconnect
     }
 }
 

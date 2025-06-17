@@ -17,6 +17,56 @@ impl Register {
     pub fn empty() -> Self {
         Self::Keyword("".into())
     }
+
+    pub fn try_add(&self, other: &Register) -> Result<Register, super::Error> {
+        match self {
+            Self::Number(a) => match other {
+                Self::Number(b) => Ok(Register::Number(i16::clamp(a + b, -9999, 9999))),
+                Self::Keyword(_) => Err(super::Error::NumericValueRequired),
+            },
+            Self::Keyword(_) => Err(super::Error::NumericValueRequired),
+        }
+    }
+
+    pub fn try_sub(&self, other: &Register) -> Result<Register, super::Error> {
+        match self {
+            Self::Number(a) => match other {
+                Self::Number(b) => Ok(Register::Number(i16::clamp(a - b, -9999, 9999))),
+                Self::Keyword(_) => Err(super::Error::NumericValueRequired),
+            },
+            Self::Keyword(_) => Err(super::Error::NumericValueRequired),
+        }
+    }
+
+    pub fn try_mul(&self, other: &Register) -> Result<Register, super::Error> {
+        match self {
+            Self::Number(a) => match other {
+                Self::Number(b) => Ok(Register::Number(i16::clamp(a * b, -9999, 9999))),
+                Self::Keyword(_) => Err(super::Error::NumericValueRequired),
+            },
+            Self::Keyword(_) => Err(super::Error::NumericValueRequired),
+        }
+    }
+
+    pub fn try_div(&self, other: &Register) -> Result<Register, super::Error> {
+        match self {
+            Self::Number(a) => match other {
+                Self::Number(b) => Ok(Register::Number(i16::clamp(a / b, -9999, 9999))),
+                Self::Keyword(_) => Err(super::Error::NumericValueRequired),
+            },
+            Self::Keyword(_) => Err(super::Error::NumericValueRequired),
+        }
+    }
+
+    pub fn try_mod(&self, other: &Register) -> Result<Register, super::Error> {
+        match self {
+            Self::Number(a) => match other {
+                Self::Number(b) => Ok(Register::Number(i16::clamp(a % b, -9999, 9999))),
+                Self::Keyword(_) => Err(super::Error::NumericValueRequired),
+            },
+            Self::Keyword(_) => Err(super::Error::NumericValueRequired),
+        }
+    }
 }
 
 impl std::fmt::Display for Register {

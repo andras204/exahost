@@ -25,14 +25,22 @@ pub async fn connect(
             Some(id) => id,
             None => backbone.connections().auto_enum_async(false).await,
         };
-        backbone.connections().add_async(lid, addr).await;
+        let disconnect_signal = backbone.connections().add_async(lid, addr).await;
 
         info!(
             "[SERVER->CONNECTION] successfully connected to {}, entering keepalive loop",
             addr
         );
 
-        let res = keepalive_loop(stream).await;
+        let res;
+        tokio::select! {
+            k = keepalive_loop(stream) => {
+                res = k;
+            },
+            _ = disconnect_signal.recv_async() => {
+                res = Err(ProtocolError::ManualDisconnect);
+            }
+        }
 
         info!("[SERVER->CONNECTION] {} disconnected", addr);
 
@@ -56,14 +64,22 @@ pub async fn accept_connection(
     send_msg(&mut stream, Message::yes()).await?;
 
     let lid = backbone.connections().auto_enum_async(true).await;
-    backbone.connections().add_async(lid, addr).await;
+    let disconnect_signal = backbone.connections().add_async(lid, addr).await;
 
     info!(
         "[SERVER->CONNECTION] accepted connection from {}, entering keepalive loop",
         addr
     );
 
-    let res = keepalive_loop(stream).await;
+    let res;
+    tokio::select! {
+        k = keepalive_loop(stream) => {
+            res = k;
+        },
+        _ = disconnect_signal.recv_async() => {
+            res = Err(ProtocolError::ManualDisconnect);
+        }
+    }
 
     info!("[SERVER->CONNECTION] {} disconnected", addr);
 

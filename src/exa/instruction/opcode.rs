@@ -4,7 +4,7 @@ use std::{fmt::Display, str::FromStr};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Encode, Decode)]
 pub enum OpCode {
-    /// `COPY value: R/N target: R`
+    /// `COPY value: R/N/K target: R`
     ///
     /// copies `value` into `target`
     Copy,

@@ -20,7 +20,7 @@ impl Default for CompilerConfig {
             false,
             false,
             false,
-            '\'',
+            '"',
             vec!["note", ";;"]
                 .into_iter()
                 .map(|s| s.to_string())
@@ -35,8 +35,8 @@ impl CompilerConfig {
             true,
             true,
             true,
-            '\'',
-            vec!["note", ";;", "//", "#"]
+            '"',
+            vec!["note", ";;", "//"]
                 .into_iter()
                 .map(|s| s.to_string())
                 .collect(),

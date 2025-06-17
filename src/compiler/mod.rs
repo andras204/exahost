@@ -4,7 +4,9 @@ use crate::config::CompilerConfig;
 use crate::exa::instruction::{Arg, Instruction, OpCode};
 use std::{
     collections::HashMap,
+    io::Write,
     ops::{Deref, DerefMut, Range},
+    path::PathBuf,
 };
 
 mod error;
@@ -35,6 +37,41 @@ impl Compiler {
             //macro_regex: Regex::new(r"@\{-?\d{1,4}, ?-?\d{1,4}\}").unwrap(),
             macro_regex: Regex::new(r"@\{-?\d{1,4},-?\d{1,4}\}").unwrap(),
         }
+    }
+
+    // TODO: handle file io errors
+    pub fn compile_file(
+        &self,
+        input_path: &PathBuf,
+        output_path: Option<PathBuf>,
+        write_binary_file: bool,
+    ) -> Result<Box<[Instruction]>, Vec<Error>> {
+        let text = match std::fs::read_to_string(&input_path) {
+            Ok(s) => s,
+            Err(e) => todo!(),
+        };
+
+        let lines: Vec<&str> = text.trim().lines().collect();
+
+        let instr_list = self.compile(&lines)?;
+
+        if write_binary_file {
+            let out = match output_path {
+                Some(p) => p,
+                None => {
+                    let mut op = PathBuf::from("./");
+                    op.set_file_name(input_path.file_stem().unwrap());
+                    op.set_extension("exa_bin");
+                    op
+                }
+            };
+
+            let mut of = std::fs::File::create(out).unwrap();
+
+            of.write_all(&bitcode::encode(&instr_list));
+        }
+
+        Ok(instr_list)
     }
 
     pub fn compile(&self, raw: &[&str]) -> Result<Box<[Instruction]>, Vec<Error>> {

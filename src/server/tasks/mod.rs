@@ -3,7 +3,7 @@ use tokio::net::TcpStream;
 
 use crate::backbone::Backbone;
 
-use crate::message::ServerCommand;
+use crate::backbone::server_command::ServerCommand;
 use crate::server::protocol::{message::*, Error, ProtocolStream};
 
 pub mod connection;
@@ -27,9 +27,15 @@ pub async fn handle_request(backbone: Backbone, tcp: TcpStream) -> Result<(), Er
 pub async fn exec_server_command(backbone: Backbone, sc: ServerCommand) -> Result<(), Error> {
     info!("[SERVER->TASK] executing command: {:?}", &sc);
     match sc {
-        ServerCommand::Connect(addr, link_id) => {
+        ServerCommand::Connect { addr, link_id } => {
             let port = backbone.get_server_listening_addr_async().await.port();
             connection::connect(backbone, link_id, addr, port).await?
+        }
+        ServerCommand::Disconnect { link_id } => {
+            backbone.connections().disconnect_async(link_id).await;
+        }
+        ServerCommand::DisconnectAll => {
+            backbone.connections().disconnect_all_async().await;
         }
         ServerCommand::NotifyExaLink => {
             exa::dispatch_all_unhandled(backbone).await;

@@ -77,6 +77,17 @@ impl ExaOutBuffer {
         inner.tokens.pop();
     }
 
+    pub fn kill_all(&self) {
+        let mut inner = self.inner.blocking_lock();
+        if inner.exas.is_empty() {
+            return;
+        }
+        inner.handled.clear();
+        inner.links.clear();
+        inner.exas.clear();
+        inner.tokens.clear();
+    }
+
     pub async fn get_link_async(&self, exa_id: usize) -> Option<i16> {
         match self.inner.lock().await.links.get(&exa_id) {
             Some(l) => Some(*l),
