@@ -12,6 +12,7 @@ use crate::{
 };
 
 pub mod fs;
+pub mod reg_m;
 
 #[derive(Debug)]
 struct RuntimeInner {

@@ -1,8 +1,9 @@
-use std::net::ToSocketAddrs;
+use std::{net::ToSocketAddrs, thread, thread::JoinHandle};
 
 use backbone::Backbone;
 use cli::Cli;
 use compiler::Compiler;
+use log::info;
 use server::Server;
 use vm::{runtime::Runtime, VM};
 
@@ -19,9 +20,9 @@ pub mod vm;
 #[derive(Debug)]
 pub struct Host {
     backbone: Backbone,
-    vm: VM,
     server: Server,
     cli: Cli,
+    vm_thread: Option<JoinHandle<()>>,
 }
 
 impl Host {
@@ -33,20 +34,24 @@ impl Host {
     ) -> Self {
         let compiler = Compiler::new(config::CompilerConfig::extended());
         let backbone = Backbone::new(hostname, max_exas, compiler);
-        let rt = Runtime::new(hostname, "./files");
-        let vm = VM::new(rt, backbone.clone());
         let server = Server::new(backbone.clone(), bind_address, server_worker_threads);
         let cli = Cli::new(backbone.clone());
         Self {
             backbone,
-            vm,
             server,
             cli,
+            vm_thread: None,
         }
     }
 
     pub fn start(&mut self) -> Result<(), std::io::Error> {
         self.server.start()?;
+        let bb = self.backbone.clone();
+        self.vm_thread = Some(thread::spawn(move || {
+            let rt = Runtime::new(bb.hostname(), "./files");
+            let mut vm = VM::new(rt, bb);
+            vm.main_loop();
+        }));
         self.cli.start();
         Ok(())
     }

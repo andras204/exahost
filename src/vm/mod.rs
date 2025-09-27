@@ -86,10 +86,16 @@ impl VM {
 
     pub fn exec_commands(&mut self, command: VMCommand) {
         match command {
-            VMCommand::Run => self.run = true,
-            VMCommand::Stop => self.run = false,
+            VMCommand::Run => {
+                self.run = true;
+            }
+            VMCommand::Stop => {
+                self.run = false;
+            }
             VMCommand::Step => {}
-            VMCommand::KillAll => self.kill_all(),
+            VMCommand::KillAll => {
+                self.kill_all();
+            }
         }
     }
 
